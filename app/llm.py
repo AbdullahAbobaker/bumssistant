@@ -46,19 +46,31 @@ class LLMClient(Protocol):
 
 
 class MockLLM:
-    """Deterministic, offline. Used on private laptops and in tests."""
+    """Deterministic, offline. Used on private laptops and in tests.
 
-    def __init__(self, embedding_dim: int = 1536) -> None:
+    Tool-calling is deterministic: a keyword trigger emits a list_projects call so the
+    offline server can demo the loop, and a `script` seeds an exact response sequence for
+    precise tests."""
+
+    def __init__(self, embedding_dim: int = 1536, script: list["ChatResult"] | None = None) -> None:
         self._dim = embedding_dim
+        self._script = list(script) if script is not None else None
 
     async def chat(
         self, system: str, messages: list[ChatMessage], tools: list[dict] | None = None
     ) -> ChatResult:
-        last = messages[-1].content if messages else ""
-        return ChatResult(text=f"[mock BumFlow] Verstanden. Nächster Schritt zu: {(last or '')[:80]}")
+        if self._script is not None:
+            return self._script.pop(0)
+        last = (messages[-1].content if messages else "") or ""
+        tool_names = {t["function"]["name"] for t in (tools or [])}
+        has_tool_result = any(m.role == "tool" for m in messages)
+        if "list_projects" in tool_names and "projekt" in last.lower() and not has_tool_result:
+            return ChatResult(tool_calls=[ToolCall(id="call_1", name="list_projects", arguments={})])
+        if has_tool_result:
+            return ChatResult(text="[mock BumFlow] Deine aktiven Projekte habe ich abgerufen.")
+        return ChatResult(text=f"[mock BumFlow] Verstanden. Nächster Schritt zu: {last[:80]}")
 
     async def embed(self, text: str) -> list[float]:
-        # Deterministic pseudo-embedding from the text hash — stable across runs.
         seed = hashlib.sha256(text.encode("utf-8")).digest()
         return [((seed[i % len(seed)] / 255.0) * 2 - 1) for i in range(self._dim)]
 
