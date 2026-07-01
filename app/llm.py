@@ -9,7 +9,7 @@ LLMClient interface, so swapping providers is a config change, not a rewrite.
 from __future__ import annotations
 
 import hashlib
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Protocol
 
 import httpx
@@ -18,9 +18,24 @@ from app.config import Settings, get_settings
 
 
 @dataclass
+class ToolCall:
+    id: str
+    name: str
+    arguments: dict
+
+
+@dataclass
+class ChatResult:
+    text: str | None = None
+    tool_calls: list["ToolCall"] = field(default_factory=list)  # empty ⇒ final answer
+
+
+@dataclass
 class ChatMessage:
-    role: str        # 'system' | 'user' | 'assistant'
-    content: str
+    role: str                                   # 'system' | 'user' | 'assistant' | 'tool'
+    content: str | None = None
+    tool_calls: list["ToolCall"] | None = None  # assistant proposing calls
+    tool_call_id: str | None = None             # links a role='tool' result to a call
 
 
 class LLMClient(Protocol):
