@@ -17,10 +17,17 @@ def test_unknown_tool_raises_keyerror():
         asyncio.run(dispatch_tool_call(ToolCall("c1", "does_not_exist", {}), ctx=None))
 
 
-def test_write_tool_refused_before_db():
-    # create_task is read_only=False -> refused before invoke, so ctx=None never used
-    with pytest.raises(PermissionError):
-        asyncio.run(dispatch_tool_call(ToolCall("c1", "create_task", {"title": "x"}), ctx=None))
+def test_non_agent_tool_refused_before_db():
+    # confirm_memory is neither read_only nor agent_writable -> refused before invoke, so
+    # ctx=None is never dereferenced; and the error must not leak the internal action name.
+    with pytest.raises(PermissionError) as exc:
+        asyncio.run(
+            dispatch_tool_call(
+                ToolCall("c1", "confirm_memory", {"memory_id": "00000000-0000-0000-0000-000000000000"}),
+                ctx=None,
+            )
+        )
+    assert "confirm_memory" not in str(exc.value)
 
 
 def test_to_jsonable_handles_pydantic_and_lists():

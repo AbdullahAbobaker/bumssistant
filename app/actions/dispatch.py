@@ -1,6 +1,6 @@
-"""Tool dispatch (proposed Decision #21, step 3): resolve a model tool call to an action
-and run it. Safety lives here — non-read-only tools are refused before any handler runs.
-Used by the /chat endpoint to build the dispatch closure handed to the orchestrator.
+"""Tool dispatch (Decision #21, steps 3-4): resolve a model tool call to an action and run
+it. Safety lives here — tools outside the agent allowlist (read-only or agent_writable) are
+refused before any handler runs. Used by /chat to build the dispatch closure.
 """
 from __future__ import annotations
 
@@ -20,6 +20,6 @@ def _to_jsonable(result: Any) -> Any:
 
 async def dispatch_tool_call(tc: ToolCall, ctx: ActionContext) -> Any:
     act = registry.get(tc.name)                       # KeyError if unknown
-    if not act.read_only:                             # defense in depth (only read-only offered)
-        raise PermissionError(f"non-read-only tool refused: {tc.name}")
+    if not (act.read_only or act.agent_writable):     # curated agent-tool allowlist
+        raise PermissionError("tool not permitted")   # no internal name leaked to the model
     return _to_jsonable(await act.invoke(tc.arguments, ctx))
