@@ -8,14 +8,18 @@ it runs end-to-end with mocks and no database — see the test.
 """
 from __future__ import annotations
 
+import json
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from typing import Protocol
+from typing import Any, Protocol
 
 from app.background import TaskRunner
 from app.chat.session import Msg, build_window
-from app.llm import ChatMessage, LLMClient
+from app.llm import ChatMessage, LLMClient, ToolCall
 from app.memory.retrieval import Candidate, select_for_context
 from app.persona import build_system_prompt
+
+MAX_TOOL_ROUNDS = 3
 
 
 @dataclass
@@ -51,6 +55,8 @@ async def handle_turn(
     port: ChatPort,
     llm: LLMClient,
     runner: TaskRunner,
+    tools: list[dict] | None = None,
+    dispatch: Callable[[ToolCall], Awaitable[Any]] | None = None,
 ) -> str:
     # 1. Immediate logging (Decision #17).
     await port.log_message(user_id, "user", user_text)
@@ -67,14 +73,33 @@ async def handle_turn(
     if ctx.rolling_summary:
         system += f"\n\nBisheriges Gespräch (Zusammenfassung):\n{ctx.rolling_summary}"
 
-    # 4. Assemble bounded window + the new turn, then call the LLM.
+    # 4. Assemble bounded window + the new turn.
     window = build_window(ctx.recent, ctx.rolling_summary)
     messages = [ChatMessage(m.role, m.content) for m in window.recent]
     messages.append(ChatMessage("user", user_text))
-    result = await llm.chat(system, messages)
-    reply = result.text or ""
 
-    # 5. Log the reply, then learn in the background (never block the user).
+    # 5. Call the LLM. With tools, run a bounded tool loop; otherwise a single call.
+    if tools and dispatch:
+        reply = "Ich konnte das gerade nicht abschließen."
+        for _ in range(MAX_TOOL_ROUNDS):
+            result = await llm.chat(system, messages, tools=tools)
+            if not result.tool_calls:
+                reply = result.text or ""
+                break
+            messages.append(ChatMessage("assistant", tool_calls=result.tool_calls))
+            for tc in result.tool_calls:
+                try:
+                    out = await dispatch(tc)
+                except Exception as e:  # bad tool call never crashes the turn
+                    out = {"error": str(e)}
+                messages.append(
+                    ChatMessage("tool", content=json.dumps(out, ensure_ascii=False), tool_call_id=tc.id)
+                )
+    else:
+        result = await llm.chat(system, messages)
+        reply = result.text or ""
+
+    # 6. Log the reply, then learn in the background (never block the user).
     await port.log_message(user_id, "assistant", reply)
     runner.run_later(port.extract_memories(user_id, user_text, reply))
     return reply
