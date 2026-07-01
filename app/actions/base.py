@@ -46,6 +46,7 @@ class Action:
     input_model: type[BaseModel]
     handler: Handler
     read_only: bool = False
+    agent_writable: bool = False  # a WRITE action BumFlow may call (self-gates to 'proposed')
 
     @property
     def http_method(self) -> str:
@@ -97,11 +98,22 @@ class Registry:
             if read_only is None or a.read_only == read_only
         ]
 
+    def agent_tool_schemas(self) -> list[dict]:
+        """Tools BumFlow may call: read-only actions PLUS explicitly agent-writable ones
+        (which self-gate to 'proposed'). Offer only what dispatch will run."""
+        return [
+            a.tool_schema()
+            for a in self._actions.values()
+            if a.read_only or a.agent_writable
+        ]
+
 
 registry = Registry()
 
 
-def action(*, name: str, description: str, read_only: bool = False) -> Callable[[Handler], Handler]:
+def action(
+    *, name: str, description: str, read_only: bool = False, agent_writable: bool = False
+) -> Callable[[Handler], Handler]:
     """Register an async `handler(inp: PydanticModel, ctx: ActionContext)` as an Action.
     The input model is read from the handler's first parameter annotation."""
 
@@ -122,6 +134,7 @@ def action(*, name: str, description: str, read_only: bool = False) -> Callable[
                 input_model=input_model,
                 handler=fn,
                 read_only=read_only,
+                agent_writable=agent_writable,
             )
         )
         return fn

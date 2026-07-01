@@ -62,6 +62,7 @@ class CreateTaskOut(BaseModel):
     name="create_task",
     description="Lege eine Aufgabe für die Person an.",
     read_only=False,
+    agent_writable=True,
 )
 async def create_task(inp: CreateTaskIn, ctx: ActionContext) -> CreateTaskOut:
     # A user-explicit write auto-confirms with full provenance (Decision #8): source

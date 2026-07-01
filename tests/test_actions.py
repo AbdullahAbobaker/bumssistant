@@ -75,3 +75,15 @@ def test_builtin_actions_registered_with_expected_metadata():
     # create_task requires a title (schema-validated before any DB work)
     with pytest.raises(ValidationError):
         by["create_task"].input_model.model_validate({})
+
+
+def test_action_agent_writable_flag():
+    assert Action("x", "d", _In, _handler).agent_writable is False
+    assert Action("y", "d", _In, _handler, agent_writable=True).agent_writable is True
+
+
+def test_agent_tool_schemas_offers_reads_and_agent_writes_only():
+    names = {t["function"]["name"] for t in registry.agent_tool_schemas()}
+    assert "list_projects" in names   # read-only
+    assert "create_task" in names     # agent_writable
+    assert "confirm_memory" not in names  # neither -> never offered to the model
