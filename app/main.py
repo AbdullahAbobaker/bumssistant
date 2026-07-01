@@ -9,6 +9,9 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 import app.actions  # noqa: F401  registers built-in actions into the registry
+from app.actions import registry
+from app.actions.base import ActionContext
+from app.actions.dispatch import dispatch_tool_call
 from app.actions.http import mount_actions
 from app.auth import CurrentUser, get_current_user
 from app.background import get_runner
@@ -16,7 +19,7 @@ from app.chat.orchestrator import handle_turn
 from app.chat.repository import DbChatPort, get_or_create_user
 from app.config import Settings, get_settings
 from app.db import SessionLocal, get_session
-from app.llm import get_llm
+from app.llm import ToolCall, get_llm
 
 app = FastAPI(title="Bumssistant", version="0.1.0")
 
@@ -62,7 +65,18 @@ async def chat(
     user_id = await get_or_create_user(session, user)
     llm = get_llm(settings)
     port = DbChatPort(SessionLocal, llm)
-    reply = await handle_turn(user_id, req.message, port=port, llm=llm, runner=get_runner())
+    tools = registry.tool_schemas(read_only=True)
+    ctx = ActionContext(
+        current_user=user, user_id=user_id, session_factory=SessionLocal, llm=llm
+    )
+
+    async def dispatch(tc: ToolCall):
+        return await dispatch_tool_call(tc, ctx)
+
+    reply = await handle_turn(
+        user_id, req.message, port=port, llm=llm, runner=get_runner(),
+        tools=tools, dispatch=dispatch,
+    )
     return ChatResponse(reply=reply)
 
 
