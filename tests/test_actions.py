@@ -87,3 +87,11 @@ def test_agent_tool_schemas_offers_reads_and_agent_writes_only():
     assert "list_projects" in names   # read-only
     assert "create_task" in names     # agent_writable
     assert "confirm_memory" not in names  # neither -> never offered to the model
+
+
+def test_action_context_initiator_defaults_to_user():
+    from app.actions.base import ActionContext
+
+    ctx = ActionContext(current_user=None, user_id="u", session_factory=None, llm=None)
+    assert ctx.initiator == "user"
+    assert ActionContext(None, "u", None, None, initiator="agent").initiator == "agent"

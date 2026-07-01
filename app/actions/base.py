@@ -34,6 +34,7 @@ class ActionContext:
     user_id: str                                    # internal users.id
     session_factory: "Callable[[], AsyncSession]"   # app.db.SessionLocal
     llm: "LLMClient"
+    initiator: str = "user"                         # "user" (HTTP /actions, CLI) | "agent" (BumFlow tool-call)
 
 
 Handler = Callable[[BaseModel, ActionContext], Awaitable[Any]]
