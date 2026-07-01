@@ -73,6 +73,14 @@ class Action:
         return await self.handler(inp, ctx)
 
 
+def is_agent_tool(action: Action) -> bool:
+    """The single safety predicate for what BumFlow may call: read-only actions plus
+    explicitly agent-writable ones (which self-gate to 'proposed'). The offering layer
+    (Registry.agent_tool_schemas) and the dispatch gate share this ONE function, so
+    "offer only what you will dispatch" can never drift into a mismatch."""
+    return action.read_only or action.agent_writable
+
+
 class Registry:
     def __init__(self) -> None:
         self._actions: dict[str, Action] = {}
@@ -100,13 +108,8 @@ class Registry:
         ]
 
     def agent_tool_schemas(self) -> list[dict]:
-        """Tools BumFlow may call: read-only actions PLUS explicitly agent-writable ones
-        (which self-gate to 'proposed'). Offer only what dispatch will run."""
-        return [
-            a.tool_schema()
-            for a in self._actions.values()
-            if a.read_only or a.agent_writable
-        ]
+        """Tools BumFlow may call — the same predicate the dispatch gate enforces."""
+        return [a.tool_schema() for a in self._actions.values() if is_agent_tool(a)]
 
 
 registry = Registry()

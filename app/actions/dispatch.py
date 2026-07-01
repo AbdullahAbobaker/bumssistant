@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.actions.base import ActionContext, registry
+from app.actions.base import ActionContext, is_agent_tool, registry
 from app.llm import ToolCall
 
 
@@ -20,6 +20,6 @@ def _to_jsonable(result: Any) -> Any:
 
 async def dispatch_tool_call(tc: ToolCall, ctx: ActionContext) -> Any:
     act = registry.get(tc.name)                       # KeyError if unknown
-    if not (act.read_only or act.agent_writable):     # curated agent-tool allowlist
+    if not is_agent_tool(act):                        # same predicate the offering layer uses
         raise PermissionError("tool not permitted")   # no internal name leaked to the model
     return _to_jsonable(await act.invoke(tc.arguments, ctx))

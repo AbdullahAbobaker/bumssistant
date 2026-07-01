@@ -89,6 +89,14 @@ def test_agent_tool_schemas_offers_reads_and_agent_writes_only():
     assert "confirm_memory" not in names  # neither -> never offered to the model
 
 
+def test_is_agent_tool_predicate():
+    from app.actions.base import is_agent_tool
+
+    assert is_agent_tool(Action("r", "d", _In, _handler, read_only=True)) is True
+    assert is_agent_tool(Action("w", "d", _In, _handler, agent_writable=True)) is True  # permitted
+    assert is_agent_tool(Action("n", "d", _In, _handler)) is False  # neither -> refused
+
+
 def test_action_context_initiator_defaults_to_user():
     from app.actions.base import ActionContext
 
