@@ -151,6 +151,30 @@ the way it is. Append; don't rewrite history.
   `outward: bool` flag (email/Teams sends) beyond `read_only` for extra confirmation; and should
   tool-calling (step 3) wait until Graph/Jira integrations give BumFlow something worth calling.
 
+- **#22 (proposed) — Scope promotion: personal → team → org learning loop.** From an external
+  briefing (Gemini/Antigravity, reviewed 2026-07-01). Today memories live in per-user silos; this
+  adds a `scope ∈ {personal, team, org}` so knowledge can flow upward. Retrieval unions across
+  scopes and weights by scope in score-fusion (personal ≫ team ≫ org), so personal memory outranks
+  org priors but org knowledge still surfaces when the user has none (#16). Promotion runs as a
+  background scan (#19) that clusters similar personal memories across users and **proposes** a
+  depersonalized team/org memory through the existing confirm gate (#8); this is the concrete build
+  of warm-start Phase 3 "shared team/org priors" (#9). A `promote_memory` @action fits #21.
+  **Status: sound concept, NOT buildable as written.** Blockers/caveats before it can proceed:
+  - **LEGAL GATE (hard):** cross-user knowledge flow about identifiable clients/colleagues is
+    co-determination territory — requires DSGVO + Betriebsrat sign-off (see PRIVACY.md open items)
+    BEFORE any cross-user flow ships. Depersonalization is the *confirmer's* job, not an automated
+    strip; consent should likely be opt-**in**, not opt-out.
+  - **Schema bugs to fix:** `source='promotion'` is not in the `memory_source` enum (needs
+    `ALTER TYPE ... ADD VALUE`); `users` has no `team_id`/`org_id` mapping for the union query;
+    multi-source provenance won't fit the single-UUID `superseded_by` (needs an array/join table).
+  - **Two hidden subsystems:** roles/RBAC (no team-lead/admin concept exists today) and cross-user
+    detection + entity resolution ("same entity Müller across users" is unsolved) are each their
+    own project, not a filter/threshold.
+  - **First safe slice:** admin-authored **top-down org memories** (`scope='org'`, `status=
+    'confirmed'`) — delivers value, needs no detection pipeline, and **no personal data flows
+    upward**. Everything cross-user waits on the legal gate. Ships with pure DB-free tests per
+    module (CLAUDE.md): scope weighting, detection scoring, depersonalization checks.
+
 ### Evaluated & parked
 
 - **Agent-Native (BuilderIO/agent-native)** — spiked hands-on 2026-07-01 (headless scaffold

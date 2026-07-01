@@ -31,3 +31,11 @@ approval are the company's responsibility (see "Open items").
 - [ ] **Betriebsrat (§87 BetrVG)** — co-determination applies; involve early.
 - [ ] **Transparency notice** — written notice to users of what is read and why.
 - [ ] **AVV / DPA** with Langdock and hosting provider.
+- [ ] **Scope promotion / cross-user knowledge flow (GATED — proposed Decision #22).** Any feature
+      that surfaces one user's derived patterns to teammates or the org (personal → team → org)
+      needs **explicit Betriebsrat + DPO sign-off before build**, not after. Concerns: patterns can
+      name identifiable third parties (clients like "Müller", colleagues) — depersonalization is a
+      human confirmer's responsibility, not an automated strip; consent should be **opt-in**;
+      promoted memories must preserve provenance for audit; users can exclude their memories from
+      the pool. Until this item is signed off, only **top-down org memories authored by an admin**
+      are permissible (no personal data flows upward).
