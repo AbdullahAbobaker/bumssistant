@@ -9,6 +9,7 @@ LLMClient interface, so swapping providers is a config change, not a rewrite.
 from __future__ import annotations
 
 import hashlib
+import json
 from dataclasses import dataclass, field
 from typing import Protocol
 
@@ -75,6 +76,51 @@ class MockLLM:
         return [((seed[i % len(seed)] / 255.0) * 2 - 1) for i in range(self._dim)]
 
 
+def _build_payload(
+    model: str, system: str, messages: list[ChatMessage], tools: list[dict] | None = None
+) -> dict:
+    """Serialize to the OpenAI-compatible chat/completions wire shape (incl. tool calls)."""
+    wire: list[dict] = [{"role": "system", "content": system}]
+    for m in messages:
+        if m.tool_calls:
+            wire.append({
+                "role": m.role,
+                "content": m.content,
+                "tool_calls": [
+                    {
+                        "id": tc.id,
+                        "type": "function",
+                        "function": {"name": tc.name, "arguments": json.dumps(tc.arguments, ensure_ascii=False)},
+                    }
+                    for tc in m.tool_calls
+                ],
+            })
+        elif m.tool_call_id:
+            wire.append({"role": m.role, "content": m.content, "tool_call_id": m.tool_call_id})
+        else:
+            wire.append({"role": m.role, "content": m.content})
+    payload: dict = {"model": model, "messages": wire}
+    if tools:
+        payload["tools"] = tools
+    return payload
+
+
+def _parse_result(data: dict) -> ChatResult:
+    """Turn an OpenAI-compatible response into a ChatResult (text or tool calls)."""
+    msg = data["choices"][0]["message"]
+    raw_calls = msg.get("tool_calls") or []
+    if raw_calls:
+        return ChatResult(tool_calls=[
+            ToolCall(
+                id=c["id"],
+                name=c["function"]["name"],
+                arguments=json.loads(c["function"]["arguments"] or "{}"),
+            )
+            for c in raw_calls
+        ])
+    return ChatResult(text=msg.get("content"))
+
+
 class LangdockLLM:
     """Production client. Assumes an OpenAI-compatible API surface."""
 
@@ -91,17 +137,13 @@ class LangdockLLM:
     async def chat(
         self, system: str, messages: list[ChatMessage], tools: list[dict] | None = None
     ) -> ChatResult:
-        payload = {
-            "model": self._chat_model,
-            "messages": [{"role": "system", "content": system}]
-            + [{"role": m.role, "content": m.content} for m in messages],
-        }
+        payload = _build_payload(self._chat_model, system, messages, tools)
         async with httpx.AsyncClient(timeout=60) as client:
             r = await client.post(
                 f"{self._base}/v1/chat/completions", json=payload, headers=self._headers
             )
             r.raise_for_status()
-            return ChatResult(text=r.json()["choices"][0]["message"]["content"])
+            return _parse_result(r.json())
 
     async def embed(self, text: str) -> list[float]:
         payload = {"model": self._embed_model, "input": text}
