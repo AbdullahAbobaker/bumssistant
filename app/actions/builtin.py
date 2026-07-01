@@ -47,6 +47,15 @@ async def list_projects(inp: NoArgs, ctx: ActionContext) -> list[ProjectOut]:
     return [ProjectOut(id=str(r.id), name=r.name, status=r.status) for r in rows]
 
 
+def _task_provenance(initiator: str) -> tuple[str, float, str]:
+    """(source, confidence, status) for a create_task call. A model-initiated task is a
+    suggestion — it lands 'proposed' for the user to confirm (Decision #8/#14). A user
+    acting directly (HTTP /actions, CLI) auto-confirms."""
+    if initiator == "agent":
+        return ("ai_inferred", 0.7, "proposed")
+    return ("user_explicit", 1.0, "confirmed")
+
+
 class CreateTaskIn(BaseModel):
     title: str = Field(..., description="Kurzer Titel der Aufgabe")
     note: str | None = Field(None, description="Optionale Details")
@@ -65,9 +74,9 @@ class CreateTaskOut(BaseModel):
     agent_writable=True,
 )
 async def create_task(inp: CreateTaskIn, ctx: ActionContext) -> CreateTaskOut:
-    # A user-explicit write auto-confirms with full provenance (Decision #8): source
-    # 'user_explicit', confidence 1.0, status 'confirmed'. AI-inferred tasks would land
-    # 'proposed' instead — that path is the async extractor, not this action.
+    # Provenance depends on who initiated the call (Decision #8): a user acting directly
+    # auto-confirms; a model-initiated task lands 'proposed' for the user to confirm.
+    source, confidence, status = _task_provenance(ctx.initiator)
     embedding = await ctx.llm.embed(f"{inp.title} {inp.note or ''}".strip())
     qvec = "[" + ",".join(f"{x:.6f}" for x in embedding) + "]"
     async with ctx.session_factory() as s:
@@ -78,7 +87,10 @@ async def create_task(inp: CreateTaskIn, ctx: ActionContext) -> CreateTaskOut:
                     INSERT INTO memories (user_id, type, title, note, due_at, state,
                                           source, confidence, status, confirmed_at, embedding)
                     VALUES (:uid, 'task', :title, :note, :due, 'open',
-                            'user_explicit', 1.0, 'confirmed', now(), CAST(:qvec AS vector))
+                            CAST(:source AS memory_source), :confidence,
+                            CAST(:status AS memory_status),
+                            CASE WHEN :status = 'confirmed' THEN now() ELSE NULL END,
+                            CAST(:qvec AS vector))
                     RETURNING id, status
                     """
                 ),
@@ -87,6 +99,9 @@ async def create_task(inp: CreateTaskIn, ctx: ActionContext) -> CreateTaskOut:
                     "title": inp.title,
                     "note": inp.note,
                     "due": inp.due_at,
+                    "source": source,
+                    "confidence": confidence,
+                    "status": status,
                     "qvec": qvec,
                 },
             )
