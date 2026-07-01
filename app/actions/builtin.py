@@ -48,12 +48,14 @@ async def list_projects(inp: NoArgs, ctx: ActionContext) -> list[ProjectOut]:
 
 
 def _task_provenance(initiator: str) -> tuple[str, float, str]:
-    """(source, confidence, status) for a create_task call. A model-initiated task is a
-    suggestion — it lands 'proposed' for the user to confirm (Decision #8/#14). A user
-    acting directly (HTTP /actions, CLI) auto-confirms."""
-    if initiator == "agent":
-        return ("ai_inferred", 0.7, "proposed")
-    return ("user_explicit", 1.0, "confirmed")
+    """(source, confidence, status) for a create_task call. Fail-closed: ONLY a direct
+    user (HTTP /actions, CLI — initiator "user") auto-confirms; anything else, including
+    the agent or any future/unknown initiator, lands 'proposed' for the user to confirm
+    (Decision #8/#14). Defaulting to 'proposed' keeps the "model never auto-confirms"
+    guarantee robust to new initiator values."""
+    if initiator == "user":
+        return ("user_explicit", 1.0, "confirmed")
+    return ("ai_inferred", 0.7, "proposed")
 
 
 class CreateTaskIn(BaseModel):
