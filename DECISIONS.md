@@ -95,3 +95,79 @@ the way it is. Append; don't rewrite history.
 - Data model: does "goal" deserve a first-class memory type? (v1 stores it as a goal-flagged
   `pattern`.) Revisit if goals become central to coaching.
 - Hosting/provider for EU production (candidates: Hetzner, IONOS, Azure EU, Scaleway).
+- **Code-execution sandbox for a future agent feature** — candidate: [CubeSandbox](https://github.com/TencentCloud/CubeSandbox)
+  (Tencent, KVM/RustVMM-based, E2B-protocol compatible, sub-60ms cold start). Would isolate
+  untrusted code run on a user's behalf (e.g. an agentic task-automation capability), not
+  needed for the current chat/memory/proactive scope. Self-hosted, requires x86_64 Linux +
+  KVM — fits the "EU-hosted" constraint (#1) if run on our own infra, but adds a new
+  privileged component to vet under DSGVO (PRIVACY.md) before any user code/data enters it.
+  No concrete feature depends on it yet; revisit once an agent/code-exec feature is scoped.
+
+### Proposed (grill before building)
+
+- **#21 (proposed) — Action primitive: define once, reuse across every surface.** The one
+  genuinely elegant idea from the Agent-Native spike (see Evaluated & parked), ported to *our*
+  stack. Today BumFlow can only talk (`handle_turn` → `llm.chat` → text) and every HTTP route is
+  hand-written. Introduce a single capability abstraction so each BumFlow operation is defined
+  ONCE and exposed as an HTTP endpoint, an agent tool, a CLI command, and (later) an MCP tool —
+  no per-surface boilerplate. Pure Python/FastAPI + Pydantic (our Zod); **no new runtime, no
+  pgvector loss** — we deliberately do NOT take Agent-Native's TS runtime / ORM / SQLite fallback
+  / bundled telemetry.
+
+  Shape:
+  ```python
+  @action(name="create_task", description="Lege eine Aufgabe an.", read_only=False)
+  async def create_task(inp: CreateTask, ctx: ActionContext) -> TaskOut: ...
+  ```
+  - `inp` = a Pydantic model → runtime validation **and** the JSON-Schema for the LLM tool.
+  - `ctx: ActionContext` = injected `{current_user, session_factory, llm}` → DSGVO user-scoping
+    is enforced in ONE place, not re-derived per route.
+  - A registry maps `name → Action`; thin adapters read from it:
+    - **HTTP**: auto-mount `/actions/{name}` (`read_only` → GET, else POST). `/health`,`/me`,
+      `/chat` stay as-is.
+    - **Agent tool**: Pydantic schema → tool JSON-Schema; the orchestrator offers the registry as
+      tools and a tool-call dispatches to the same handler. Needs `LLMClient.chat(tools=…)` —
+      extends the gateway once (Mock + Langdock, per #18). This is the "BumFlow can *act*" step.
+    - **CLI**: `python -m app.actions <name> '{json}'` (dev/scripting/tests).
+    - **MCP**: expose the same registry as MCP tools later (new adapter, no new definitions).
+
+  Fit with locked decisions:
+  - `read_only` flag (borrowed from Agent-Native) gates side effects. Write-actions that create
+    memory route through **propose-then-confirm (#8)**: the action proposes, the batched review
+    panel (#17) confirms — the model never silently mutates confirmed memory.
+  - Guardrails (#14: never invent tasks/deadlines) get *stronger*: actions become the only path
+    by which the model changes state, so every mutation is schema-validated + provenance-stamped.
+  - Reliability bar (CLAUDE.md): registry, schema→tool conversion, `read_only`→verb mapping, and
+    dispatch are all **pure, DB-free unit-testable**; handlers reuse the already-tested repository.
+
+  Migration path (incremental — nothing ripped out):
+  1. `app/actions/` (`Action`, `@action`, registry) + HTTP adapter; port ONE capability
+     (`list_projects`) to prove the seam. Existing routes untouched.
+  2. Add `create_task` + `confirm_memory` (the propose-then-confirm write path).
+  3. Extend `LLMClient.chat` for tool-calling; orchestrator offers the registry → BumFlow acts.
+  4. Optional MCP adapter over the same registry (for external agents / A2A).
+
+  Open questions to grill: flat `/actions/{name}` vs per-action HTTP paths; do we need a separate
+  `outward: bool` flag (email/Teams sends) beyond `read_only` for extra confirmation; and should
+  tool-calling (step 3) wait until Graph/Jira integrations give BumFlow something worth calling.
+
+### Evaluated & parked
+
+- **Agent-Native (BuilderIO/agent-native)** — spiked hands-on 2026-07-01 (headless scaffold
+  built, installed, ran). A heavyweight full-stack **TypeScript/React** framework: one "action"
+  definition powers UI + agent + HTTP + MCP + A2A + CLI, with its own agent runtime
+  (chat/tools/skills/memory/jobs) over SQL-backed stores. Verdict: **not adopted as backend.**
+  - **The good:** the core primitive is genuinely elegant — `defineAction({ description, schema:
+    zod, http, readOnly, run })` is written once and callable from CLI (`pnpm action hello`), the
+    app-agent loop (`pnpm agent "..."`), HTTP, and MCP. Confirmed working: `pnpm action hello
+    '{"name":"Builder"}'` → `{ message: 'Hello, Builder!' }`.
+  - **The cost / misfit:** it brings its *own* SQL layer + state stores (SQLite/PGlite/`postgres`
+    by default, not pgvector), agent runtime, and LLM/token wiring — each duplicates a locked
+    Bumssistant module (pgvector hybrid memory #16, `LLMClient`→Langdock #5/#18, orchestrator #20)
+    already built and tested. Footprint is large (765 pkgs / ~703 MB node_modules for the
+    *minimal* headless app) on a bleeding-edge toolchain (TS 6 native-preview `tsgo`, `@types/node`
+    24, oxfmt) with fast version churn (core 0.80.x, 0.84.x already out). DSGVO: default deps pull
+    Sentry + OpenTelemetry — telemetry surface to vet before any use.
+  - *Possible future revisit ONLY as the frontend/UI surface (Decision: React frontend), with the
+    Python brain as an external backend — but the "actions" model assumes its own runtime + SQL
+    stores, so fit is uncertain. Not a backend replacement.*

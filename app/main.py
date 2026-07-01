@@ -4,14 +4,29 @@ Run locally:  uvicorn app.main:app --reload
 Docs:         http://localhost:8000/docs
 """
 from fastapi import Depends, FastAPI
+from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+import app.actions  # noqa: F401  registers built-in actions into the registry
+from app.actions.http import mount_actions
 from app.auth import CurrentUser, get_current_user
+from app.background import get_runner
+from app.chat.orchestrator import handle_turn
+from app.chat.repository import DbChatPort, get_or_create_user
 from app.config import Settings, get_settings
-from app.db import get_session
+from app.db import SessionLocal, get_session
+from app.llm import get_llm
 
 app = FastAPI(title="Bumssistant", version="0.1.0")
+
+
+class ChatRequest(BaseModel):
+    message: str
+
+
+class ChatResponse(BaseModel):
+    reply: str
 
 
 @app.get("/health")
@@ -33,3 +48,23 @@ async def me(
         "environment": settings.environment,
         "warm_start_scan_mode": settings.effective_scan_mode,
     }
+
+
+@app.post("/chat", response_model=ChatResponse)
+async def chat(
+    req: ChatRequest,
+    user: CurrentUser = Depends(get_current_user),
+    settings: Settings = Depends(get_settings),
+    session: AsyncSession = Depends(get_session),
+) -> ChatResponse:
+    """Talk to BumFlow. Resolves the user, then runs the full chat loop:
+    log turn → retrieve memory → BumFlow prompt → LLM → log reply → async learn."""
+    user_id = await get_or_create_user(session, user)
+    llm = get_llm(settings)
+    port = DbChatPort(SessionLocal, llm)
+    reply = await handle_turn(user_id, req.message, port=port, llm=llm, runner=get_runner())
+    return ChatResponse(reply=reply)
+
+
+# Mount the action registry (GET /actions catalog + POST /actions/{name} dispatcher).
+mount_actions(app)

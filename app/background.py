@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Awaitable
+from functools import lru_cache
 from typing import Protocol
 
 
@@ -27,3 +28,11 @@ class InProcessRunner:
         task = asyncio.ensure_future(coro)
         self._tasks.add(task)                    # keep a ref so it isn't GC'd mid-flight
         task.add_done_callback(self._tasks.discard)
+
+
+@lru_cache
+def get_runner() -> InProcessRunner:
+    """Process-lifetime runner for request handlers. A per-request runner would be
+    GC'd after the response, taking its task refs with it and risking a dropped
+    fire-and-forget job — so the endpoint shares this single instance."""
+    return InProcessRunner()
