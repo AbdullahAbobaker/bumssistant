@@ -1,6 +1,13 @@
 """Pure, DB-free tests for LLM tool-calling types and behavior (app/llm.py)."""
 import asyncio
-from app.llm import ChatMessage, ChatResult, MockLLM, ToolCall
+from app.llm import (
+    ChatMessage,
+    ChatResult,
+    MockLLM,
+    ToolCall,
+    _build_payload,
+    _parse_result,
+)
 
 
 def test_tool_types_construct():
@@ -64,7 +71,6 @@ def test_mockllm_script_drives_sequence():
 
 
 def test_build_payload_serializes_tools_and_tool_messages():
-    from app.llm import _build_payload
     msgs = [
         ChatMessage("user", "Zeig Projekte"),
         ChatMessage("assistant", tool_calls=[ToolCall("c1", "list_projects", {"x": 1})]),
@@ -82,7 +88,6 @@ def test_build_payload_serializes_tools_and_tool_messages():
 
 
 def test_parse_result_text_and_tool_calls():
-    from app.llm import _parse_result
     text = _parse_result({"choices": [{"message": {"content": "hallo"}}]})
     assert text.text == "hallo" and text.tool_calls == []
     call = _parse_result({"choices": [{"message": {"content": None, "tool_calls": [

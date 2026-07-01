@@ -86,6 +86,8 @@ async def handle_turn(
             if not result.tool_calls:
                 reply = result.text or ""
                 break
+            if result.text:  # a model may return text alongside tool calls; keep the
+                reply = result.text  # latest so an exhausted loop returns real words, not the fallback
             messages.append(ChatMessage("assistant", tool_calls=result.tool_calls))
             for tc in result.tool_calls:
                 try:

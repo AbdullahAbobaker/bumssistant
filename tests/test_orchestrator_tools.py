@@ -1,5 +1,6 @@
 """Pure, DB-free tests for the orchestrator tool loop (app/chat/orchestrator.py)."""
 import asyncio
+import json
 
 from app.background import InProcessRunner
 from app.chat.orchestrator import TurnContext, handle_turn
@@ -65,7 +66,29 @@ def test_dispatch_error_is_fed_back_not_raised():
         )
         assert reply == "Entschuldige, das ging nicht."
         tool_msgs = [m for m in seen["msgs"] if m.role == "tool"]
-        assert tool_msgs and "error" in tool_msgs[-1].content
+        assert tool_msgs and "error" in json.loads(tool_msgs[-1].content)
+
+    asyncio.run(run())
+
+
+def test_loop_exhaustion_returns_models_last_text_not_fallback():
+    async def run():
+        async def dispatch(tc: ToolCall):
+            return {}
+
+        # Model keeps requesting tools every round (never a tool-free answer), but
+        # includes text alongside — the loop exhausts at MAX_TOOL_ROUNDS and should
+        # return the model's latest words, not the generic fallback.
+        llm = MockLLM(8, script=[
+            ChatResult(text="denke nach 1", tool_calls=[ToolCall("c1", "list_projects", {})]),
+            ChatResult(text="denke nach 2", tool_calls=[ToolCall("c2", "list_projects", {})]),
+            ChatResult(text="denke nach 3", tool_calls=[ToolCall("c3", "list_projects", {})]),
+        ])
+        reply = await handle_turn(
+            "u1", "x", port=_Port(), llm=llm, runner=InProcessRunner(),
+            tools=[{"type": "function", "function": {"name": "list_projects"}}], dispatch=dispatch,
+        )
+        assert reply == "denke nach 3"
 
     asyncio.run(run())
 
