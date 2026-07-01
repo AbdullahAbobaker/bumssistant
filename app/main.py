@@ -65,9 +65,10 @@ async def chat(
     user_id = await get_or_create_user(session, user)
     llm = get_llm(settings)
     port = DbChatPort(SessionLocal, llm)
-    tools = registry.tool_schemas(read_only=True)
+    tools = registry.agent_tool_schemas()
     ctx = ActionContext(
-        current_user=user, user_id=user_id, session_factory=SessionLocal, llm=llm
+        current_user=user, user_id=user_id, session_factory=SessionLocal, llm=llm,
+        initiator="agent",
     )
 
     async def dispatch(tc: ToolCall):
