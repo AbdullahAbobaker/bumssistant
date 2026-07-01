@@ -71,7 +71,8 @@ async def handle_turn(
     window = build_window(ctx.recent, ctx.rolling_summary)
     messages = [ChatMessage(m.role, m.content) for m in window.recent]
     messages.append(ChatMessage("user", user_text))
-    reply = await llm.chat(system, messages)
+    result = await llm.chat(system, messages)
+    reply = result.text or ""
 
     # 5. Log the reply, then learn in the background (never block the user).
     await port.log_message(user_id, "assistant", reply)

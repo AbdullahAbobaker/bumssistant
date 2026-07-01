@@ -39,7 +39,9 @@ class ChatMessage:
 
 
 class LLMClient(Protocol):
-    async def chat(self, system: str, messages: list[ChatMessage]) -> str: ...
+    async def chat(
+        self, system: str, messages: list[ChatMessage], tools: list[dict] | None = None
+    ) -> "ChatResult": ...
     async def embed(self, text: str) -> list[float]: ...
 
 
@@ -49,9 +51,11 @@ class MockLLM:
     def __init__(self, embedding_dim: int = 1536) -> None:
         self._dim = embedding_dim
 
-    async def chat(self, system: str, messages: list[ChatMessage]) -> str:
+    async def chat(
+        self, system: str, messages: list[ChatMessage], tools: list[dict] | None = None
+    ) -> ChatResult:
         last = messages[-1].content if messages else ""
-        return f"[mock BumFlow] Verstanden. Nächster Schritt zu: {last[:80]}"
+        return ChatResult(text=f"[mock BumFlow] Verstanden. Nächster Schritt zu: {(last or '')[:80]}")
 
     async def embed(self, text: str) -> list[float]:
         # Deterministic pseudo-embedding from the text hash — stable across runs.
@@ -72,16 +76,20 @@ class LangdockLLM:
     def _headers(self) -> dict[str, str]:
         return {"Authorization": f"Bearer {self._key}"}
 
-    async def chat(self, system: str, messages: list[ChatMessage]) -> str:
+    async def chat(
+        self, system: str, messages: list[ChatMessage], tools: list[dict] | None = None
+    ) -> ChatResult:
         payload = {
             "model": self._chat_model,
             "messages": [{"role": "system", "content": system}]
             + [{"role": m.role, "content": m.content} for m in messages],
         }
         async with httpx.AsyncClient(timeout=60) as client:
-            r = await client.post(f"{self._base}/v1/chat/completions", json=payload, headers=self._headers)
+            r = await client.post(
+                f"{self._base}/v1/chat/completions", json=payload, headers=self._headers
+            )
             r.raise_for_status()
-            return r.json()["choices"][0]["message"]["content"]
+            return ChatResult(text=r.json()["choices"][0]["message"]["content"])
 
     async def embed(self, text: str) -> list[float]:
         payload = {"model": self._embed_model, "input": text}

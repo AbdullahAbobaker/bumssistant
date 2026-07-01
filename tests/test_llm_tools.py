@@ -1,5 +1,6 @@
 """Pure, DB-free tests for LLM tool-calling types and behavior (app/llm.py)."""
-from app.llm import ChatMessage, ChatResult, ToolCall
+import asyncio
+from app.llm import ChatMessage, ChatResult, MockLLM, ToolCall
 
 
 def test_tool_types_construct():
@@ -18,3 +19,10 @@ def test_chat_message_carries_tool_fields():
     assert a.content is None and a.tool_calls[0].id == "c1"
     # positional (role, content) construction still works
     assert ChatMessage("user", "hallo").content == "hallo"
+
+
+def test_mockllm_chat_returns_chatresult_text():
+    out = asyncio.run(MockLLM(8).chat("sys", [ChatMessage("user", "Was steht an?")]))
+    assert isinstance(out, ChatResult)
+    assert out.tool_calls == []
+    assert "Was steht an?" in (out.text or "")
