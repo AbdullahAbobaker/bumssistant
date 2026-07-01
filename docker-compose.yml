@@ -1,0 +1,24 @@
+# One command to run the whole dev stack on any laptop: `docker compose up`
+# Postgres ships with pgvector preinstalled; migrations auto-run on first start.
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: bumssistant-db
+    environment:
+      POSTGRES_USER: bumssistant
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-devpassword}
+      POSTGRES_DB: bumssistant
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      # Any .sql here runs once, in order, on a fresh database:
+      - ./db/migrations:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bumssistant -d bumssistant"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  pgdata:
