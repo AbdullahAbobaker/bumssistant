@@ -1,10 +1,6 @@
 .dashboard-layout {
   display: grid;
-  grid-template-columns: 280px 1fr;
   grid-template-rows: auto 1fr;
-  grid-template-areas:
-    "sidebar header"
-    "sidebar main";
   height: 100dvh;
   width: 100vw;
   gap: 24px;
@@ -12,58 +8,9 @@
   box-sizing: border-box;
 }
 
-.dashboard-sidebar {
-  grid-area: sidebar;
-  padding: 32px 24px;
-  display: flex;
-  flex-direction: column;
-  gap: 32px;
-}
 
-.dashboard-sidebar h2 {
-  margin: 0;
-  color: var(--color-accent);
-}
-
-.sidebar-section h3 {
-  font-size: 0.875rem;
-  color: var(--color-text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  margin: 0 0 12px 0;
-}
-
-.sidebar-section ul {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.sidebar-section li {
-  padding: 8px 12px;
-  border-radius: calc(var(--radius) / 2);
-  cursor: pointer;
-  font-weight: 500;
-  transition: background 0.2s ease;
-}
-
-.sidebar-section li:hover {
-  background: rgba(255, 255, 255, 0.1);
-}
-
-.dashboard-header {
-  grid-area: header;
-  padding: 24px 32px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
 
 .dashboard-main {
-  grid-area: main;
   display: flex;
   flex-direction: column;
   overflow-y: auto;

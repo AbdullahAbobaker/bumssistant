@@ -1,0 +1,11 @@
+.welcome-header {
+  margin-bottom: 32px;
+}
+
+.welcome-text {
+  font-size: 3rem;
+  font-weight: 300;
+  margin: 0;
+  letter-spacing: -0.02em;
+  color: var(--color-text);
+}

@@ -1,28 +1,13 @@
 import './App.css'
+import { TopNav } from './components/TopNav'
+import { WelcomeHeader } from './components/WelcomeHeader'
 
 function App() {
   return (
     <div className="dashboard-layout">
-      <aside className="dashboard-sidebar glass-dark">
-        <h2 className="text-heading-medium">BumFlow</h2>
-        <div className="sidebar-section">
-          <h3>Aktive Projekte</h3>
-          <ul>
-            <li>Projekt Alpha</li>
-          </ul>
-        </div>
-        <div className="sidebar-section">
-          <h3>Heute fällig</h3>
-          <ul>
-            <li>Design Review</li>
-          </ul>
-        </div>
-      </aside>
-      <header className="dashboard-header glass">
-        <h1 className="text-heading-large">Dashboard</h1>
-        <button className="btn">Neues Projekt</button>
-      </header>
+      <TopNav />
       <main className="dashboard-main">
+        <WelcomeHeader user="Abdullah" />
         <div className="dashboard-widgets">
           <div className="widget glass">
             <h3 className="text-heading-medium">Chat</h3>
