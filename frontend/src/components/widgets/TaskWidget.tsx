@@ -1,7 +1,17 @@
 import './TaskWidget.css'
 
-export function TaskWidget() {
-  const tasks = [
+export interface TaskItem {
+  id: number;
+  title: string;
+  completed: boolean;
+}
+
+export interface TaskWidgetProps {
+  tasks?: TaskItem[];
+}
+
+export function TaskWidget({ tasks: propsTasks }: TaskWidgetProps) {
+  const tasks = propsTasks || [
     { id: 1, title: 'Interview', completed: false },
     { id: 2, title: 'Team-Meeting', completed: false },
     { id: 3, title: 'Projekt Update', completed: true },

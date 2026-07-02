@@ -4,6 +4,9 @@ import { ProfileCard } from './components/widgets/ProfileCard'
 import { TaskWidget } from './components/widgets/TaskWidget'
 import { ProgressWidget } from './components/widgets/ProgressWidget'
 import { ChatWidget } from './components/widgets/ChatWidget'
+import { DynamicStatWidget } from './components/widgets/DynamicStatWidget'
+import { DynamicListWidget } from './components/widgets/DynamicListWidget'
+import { CalendarWidget } from './components/widgets/CalendarWidget'
 import { WidgetConfig } from './config/widgetRegistry'
 
 type NavItem = 'chat' | 'memory' | 'review' | 'settings'
@@ -39,7 +42,10 @@ function AmbientBackdrop() {
 export default function App() {
   const [activeNav, setActiveNav] = useState<NavItem>('chat')
   const [userDashboardConfig] = useState<WidgetConfig[]>([
-    { id: 'tasks', type: 'TASK_LIST', region: 'aside' },
+    { id: 'stat1', type: 'STAT_CARD', region: 'aside', props: { title: 'Urlaubsanspruch', value: '28 Tage', color: '#818CF8' } },
+    { id: 'calendar', type: 'CALENDAR', region: 'aside' },
+    { id: 'tasks', type: 'TASK_LIST', region: 'aside', props: { tasks: [{ id: 1, title: 'Interview', completed: false }, { id: 2, title: 'Team-Meeting', completed: true }] } },
+    { id: 'team', type: 'ACCORDION_LIST', region: 'aside', props: { title: 'Teammitglieder', items: [{ label: 'Max Mustermann', content: 'Developer' }, { label: 'Erika Musterfrau', content: 'Designer' }] } },
     { id: 'progress', type: 'PROGRESS', region: 'aside' },
     { id: 'profile', type: 'PROFILE', region: 'aside' },
     { id: 'chat', type: 'CHAT', region: 'main' }
@@ -47,10 +53,13 @@ export default function App() {
 
   const renderWidget = (widget: WidgetConfig) => {
     switch (widget.type) {
-      case 'PROFILE': return <ProfileCard key={widget.id} />
-      case 'TASK_LIST': return <TaskWidget key={widget.id} />
-      case 'PROGRESS': return <ProgressWidget key={widget.id} />
-      case 'CHAT': return <ChatWidget key={widget.id} />
+      case 'PROFILE': return <ProfileCard key={widget.id} {...widget.props} />
+      case 'TASK_LIST': return <TaskWidget key={widget.id} {...widget.props} />
+      case 'PROGRESS': return <ProgressWidget key={widget.id} {...widget.props} />
+      case 'CHAT': return <ChatWidget key={widget.id} {...widget.props} />
+      case 'STAT_CARD': return <DynamicStatWidget key={widget.id} {...widget.props} />
+      case 'ACCORDION_LIST': return <DynamicListWidget key={widget.id} {...widget.props} />
+      case 'CALENDAR': return <CalendarWidget key={widget.id} {...widget.props} />
       default: return null
     }
   }
