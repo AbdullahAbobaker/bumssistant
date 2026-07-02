@@ -1,6 +1,10 @@
 import './TopNav.css';
 
-export function TopNav() {
+interface TopNavProps {
+  onOpenSettings?: () => void;
+}
+
+export function TopNav({ onOpenSettings }: TopNavProps) {
   return (
     <nav className="top-nav glass">
       <div className="top-nav-logo">
@@ -23,6 +27,14 @@ export function TopNav() {
           <a href="#" className="nav-link">Einstellungen</a>
         </li>
       </ul>
+      {onOpenSettings && (
+        <button 
+          className="btn-edit-dashboard glass-2" 
+          onClick={onOpenSettings}
+        >
+          Dashboard bearbeiten
+        </button>
+      )}
     </nav>
   );
 }

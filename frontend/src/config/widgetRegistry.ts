@@ -1,7 +1,7 @@
-import { DynamicStatWidgetProps } from '../components/widgets/DynamicStatWidget'
-import { DynamicListWidgetProps } from '../components/widgets/DynamicListWidget'
-import { CalendarWidgetProps } from '../components/widgets/CalendarWidget'
-import { TaskWidgetProps } from '../components/widgets/TaskWidget'
+import type { DynamicStatWidgetProps } from '../components/widgets/DynamicStatWidget'
+import type { DynamicListWidgetProps } from '../components/widgets/DynamicListWidget'
+import type { CalendarWidgetProps } from '../components/widgets/CalendarWidget'
+import type { TaskWidgetProps } from '../components/widgets/TaskWidget'
 
 export type WidgetType = 
   | 'STAT_CARD'
@@ -38,3 +38,13 @@ export const WIDGET_DEFAULT_SIZES: Record<WidgetType, { w: number; h: number }> 
   CALENDAR: { w: 1, h: 2 },
   ACCORDION_LIST: { w: 1, h: 2 },
 };
+
+export const AVAILABLE_WIDGETS: { type: WidgetType; label: string; defaultProps?: any }[] = [
+  { type: 'STAT_CARD', label: 'Statistik Karte', defaultProps: { title: 'Neue Statistik', value: '0', color: '#818CF8' } },
+  { type: 'TASK_LIST', label: 'Aufgabenliste', defaultProps: { tasks: [] } },
+  { type: 'PROGRESS', label: 'Fortschritt', defaultProps: {} },
+  { type: 'PROFILE', label: 'Profil', defaultProps: {} },
+  { type: 'CHAT', label: 'Chat', defaultProps: {} },
+  { type: 'CALENDAR', label: 'Kalender', defaultProps: {} },
+  { type: 'ACCORDION_LIST', label: 'Team Liste', defaultProps: { title: 'Teammitglieder', items: [] } },
+];

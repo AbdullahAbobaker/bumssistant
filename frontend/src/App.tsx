@@ -7,7 +7,9 @@ import { ChatWidget } from './components/widgets/ChatWidget'
 import { DynamicStatWidget } from './components/widgets/DynamicStatWidget'
 import { DynamicListWidget } from './components/widgets/DynamicListWidget'
 import { CalendarWidget } from './components/widgets/CalendarWidget'
-import { WidgetConfig } from './config/widgetRegistry'
+import type { WidgetConfig } from './config/widgetRegistry'
+import { TopNav } from './components/TopNav'
+import { DashboardSettingsModal } from './components/DashboardSettingsModal'
 
 type NavItem = 'chat' | 'memory' | 'review' | 'settings'
 
@@ -41,7 +43,8 @@ function AmbientBackdrop() {
 
 export default function App() {
   const [activeNav, setActiveNav] = useState<NavItem>('chat')
-  const [userDashboardConfig] = useState<WidgetConfig[]>([
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+  const [userDashboardConfig, setUserDashboardConfig] = useState<WidgetConfig[]>([
     { id: 'stat1', type: 'STAT_CARD', region: 'aside', props: { title: 'Urlaubsanspruch', value: '28 Tage', color: '#818CF8' } },
     { id: 'calendar', type: 'CALENDAR', region: 'aside' },
     { id: 'tasks', type: 'TASK_LIST', region: 'aside', props: { tasks: [{ id: 1, title: 'Interview', completed: false }, { id: 2, title: 'Team-Meeting', completed: true }] } },
@@ -95,11 +98,9 @@ export default function App() {
 
         {/* ── Main ── */}
         <main className="app-main">
-          {/* Top bar */}
-          <div className="top-bar glass-1">
-            <div className="status-dot" title="Backend verbunden" />
-            <span className="top-bar-title">BumFlow</span>
-            <span className="top-bar-subtitle">Dein KI-Arbeitsassistent</span>
+          {/* Top Nav */}
+          <div style={{ padding: '24px 24px 0' }}>
+            <TopNav onOpenSettings={() => setIsSettingsOpen(true)} />
           </div>
 
           {/* Main content */}
@@ -111,6 +112,17 @@ export default function App() {
           {asideWidgets.map(renderWidget)}
         </aside>
       </div>
+
+      {isSettingsOpen && (
+        <DashboardSettingsModal 
+          userDashboardConfig={userDashboardConfig}
+          onSave={(newConfig) => {
+            setUserDashboardConfig(newConfig);
+            setIsSettingsOpen(false);
+          }}
+          onClose={() => setIsSettingsOpen(false)}
+        />
+      )}
     </>
   )
 }
