@@ -129,19 +129,19 @@ body {
   .glass-dark legacy alias → glass-2 + slightly darker tint
 */
 .glass-1 {
-  background: var(--glass-1);
+  background: linear-gradient(var(--scrim), var(--scrim)), var(--glass-1);
   backdrop-filter: blur(var(--glass-blur)) saturate(130%);
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(130%);
   border: 1px solid var(--glass-border);
 }
 .glass-2, .glass {
-  background: var(--glass-2);
+  background: linear-gradient(var(--scrim), var(--scrim)), var(--glass-2);
   backdrop-filter: blur(var(--glass-blur)) saturate(140%);
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(140%);
   border: 1px solid var(--glass-border);
 }
 .glass-3 {
-  background: var(--glass-3);
+  background: linear-gradient(var(--scrim), var(--scrim)), var(--glass-3);
   backdrop-filter: blur(var(--glass-blur)) saturate(150%);
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(150%);
   border: 1px solid rgba(255, 255, 255, 0.18);
