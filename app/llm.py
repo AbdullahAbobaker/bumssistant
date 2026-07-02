@@ -39,11 +39,23 @@ class ChatMessage:
     tool_call_id: str | None = None             # links a role='tool' result to a call
 
 
+@dataclass
+class MemoryCandidate:
+    type: str            # "task" | "pattern"
+    title: str
+    note: str = ""
+    confidence: float = 0.6
+
+
 class LLMClient(Protocol):
     async def chat(
         self, system: str, messages: list[ChatMessage], tools: list[dict] | None = None
     ) -> "ChatResult": ...
     async def embed(self, text: str) -> list[float]: ...
+    async def extract(self, user_text: str, reply: str) -> list["MemoryCandidate"]: ...
+
+
+_TASK_TRIGGERS = ("muss", "todo", "aufgabe", "task")
 
 
 class MockLLM:
@@ -53,9 +65,15 @@ class MockLLM:
     offline server can demo the loop, and a `script` seeds an exact response sequence for
     precise tests."""
 
-    def __init__(self, embedding_dim: int = 1536, script: list["ChatResult"] | None = None) -> None:
+    def __init__(
+        self,
+        embedding_dim: int = 1536,
+        script: list["ChatResult"] | None = None,
+        extract_script: list[list["MemoryCandidate"]] | None = None,
+    ) -> None:
         self._dim = embedding_dim
         self._script = list(script) if script is not None else None
+        self._extract_script = list(extract_script) if extract_script is not None else None
 
     async def chat(
         self, system: str, messages: list[ChatMessage], tools: list[dict] | None = None
@@ -74,6 +92,14 @@ class MockLLM:
     async def embed(self, text: str) -> list[float]:
         seed = hashlib.sha256(text.encode("utf-8")).digest()
         return [((seed[i % len(seed)] / 255.0) * 2 - 1) for i in range(self._dim)]
+
+    async def extract(self, user_text: str, reply: str) -> list[MemoryCandidate]:
+        if self._extract_script is not None:
+            return self._extract_script.pop(0)
+        low = (user_text or "").lower()
+        if any(t in low for t in _TASK_TRIGGERS):
+            return [MemoryCandidate(type="task", title=user_text.strip()[:80])]
+        return []
 
 
 def _build_payload(
