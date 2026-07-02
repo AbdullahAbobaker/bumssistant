@@ -49,3 +49,23 @@ app/
   auth.py        Entra SSO + fail-closed dev bypass
   main.py        FastAPI app (/health, /me)
 ```
+
+## MCP server (read-only actions)
+
+Bumssistant exposes its read-only actions as MCP tools over stdio. Point any MCP client at:
+
+    /Applications/anaconda3/bin/python -m app.actions.mcp_server
+
+Example `.mcp.json` entry:
+
+    {
+      "mcpServers": {
+        "bumssistant": {
+          "command": "python",
+          "args": ["-m", "app.actions.mcp_server"]
+        }
+      }
+    }
+
+Only read-only actions are exposed (e.g. `list_projects`); write actions are never offered
+and are refused by the server. Runs as the local dev user.
