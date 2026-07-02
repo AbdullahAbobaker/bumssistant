@@ -6,8 +6,10 @@ export default defineConfig({
   plugins: [react()],
   server: {
     proxy: {
-      '/chat': 'http://localhost:8000',
-      '/me': 'http://localhost:8000'
+      '/chat':    'http://localhost:8000',
+      '/me':      'http://localhost:8000',
+      '/health':  'http://localhost:8000',
+      '/actions': 'http://localhost:8000',
     }
   },
   test: {

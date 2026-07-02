@@ -1,97 +1,142 @@
-/* frontend/src/index.css */
+/* Bumssistant — Design Token System
+   Immersive Ambient Glassmorphism (docs/design/2026-07-02-ui-plan-ambient-glassmorphism.md)
+   Monochrome-first: state via opacity/white-fill, not brand color.
+*/
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
 :root {
-  --color-bg: linear-gradient(135deg, #e2e2e4 0%, #f8f3d6 50%, #ffe8a1 100%);
-  --color-surface: rgba(255, 255, 255, 0.4);
-  --color-text: #171717;
-  --color-text-muted: #737373;
-  --color-accent: #fbbf24;
-  --color-accent-hover: #f59e0b;
-  --color-accent-text: #1e293b;
-  --color-glass-border: rgba(255, 255, 255, 0.4);
-  --border: rgba(255, 255, 255, 0.5);
-  --radius: 24px;
-  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  /* Ambient base */
+  --bg-base: #0F172A;
+  --scrim: rgba(15, 23, 42, 0.60);
+
+  /* Glass surfaces — three elevation tiers */
+  --glass-1: rgba(255, 255, 255, 0.05);
+  --glass-2: rgba(255, 255, 255, 0.10);
+  --glass-3: rgba(255, 255, 255, 0.16);
+  --glass-border: rgba(255, 255, 255, 0.12);
+  --glass-blur: 20px;
+
+  /* Text — verified ≥4.5:1 on scrimmed glass */
+  --fg: rgba(255, 255, 255, 0.96);
+  --fg-muted: rgba(255, 255, 255, 0.60);
+  --fg-faint: rgba(255, 255, 255, 0.35);
+
+  /* Controls — state by opacity/white-fill */
+  --control-inactive: rgba(255, 255, 255, 0.08);
+  --control-active: rgba(255, 255, 255, 0.22);
+  --control-knob: rgba(255, 255, 255, 0.96);
+
+  /* Accent — reserved, used sparingly */
+  --accent: #818CF8;
+  --accent-glow: rgba(129, 140, 248, 0.25);
+  --destructive: #F87171;
+
+  /* Shape */
+  --radius-sm: 12px;
+  --radius-md: 20px;
+  --radius-lg: 28px;
+  --radius-pill: 999px;
+
+  /* Shadow */
+  --shadow-ambient: 0 8px 40px rgba(0, 0, 0, 0.40);
+  --shadow-sm: 0 2px 12px rgba(0, 0, 0, 0.25);
+
+  /* Typography */
+  --font: 'Inter', system-ui, -apple-system, sans-serif;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --color-bg: #0a0a0a;
-    --color-surface: rgba(23, 23, 23, 0.6);
-    --color-text: #f5f5f5;
-    --color-text-muted: #a3a3a3;
-    --color-glass-border: rgba(255, 255, 255, 0.1);
-    --border: #2e303a;
-  }
-}
+/* ── Reset ─────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-* {
-  box-sizing: border-box;
-}
-
-body {
-  margin: 0;
-  font-family: var(--font-sans);
-  background: var(--color-bg);
-  color: var(--color-text);
-  -webkit-font-smoothing: antialiased;
+html, body, #root {
+  width: 100%;
+  height: 100%;
   overflow: hidden;
 }
 
-#root {
-  width: 100%;
-  height: 100dvh;
-  text-align: left;
-  display: flex;
-  flex-direction: column;
-  box-sizing: border-box;
+body {
+  font-family: var(--font);
+  background: var(--bg-base);
+  color: var(--fg);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-.glass {
-  background: var(--color-surface);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid var(--color-glass-border);
-  border-radius: var(--radius);
+/* ── Ambient backdrop ───────────────────────────────── */
+.ambient-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
 }
 
-.glass-dark {
-  background: rgba(30, 41, 59, 0.85);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: #f8fafc;
-  border-radius: var(--radius);
+.ambient-backdrop::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 80% 60% at 20% 10%, rgba(99, 102, 241, 0.30) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 50% at 80% 80%, rgba(14, 165, 210, 0.18) 0%, transparent 55%),
+    radial-gradient(ellipse 70% 40% at 50% 50%, rgba(139, 92, 246, 0.12) 0%, transparent 60%),
+    linear-gradient(160deg, #0F172A 0%, #0D1526 50%, #0A1020 100%);
+  animation: ambientDrift 30s ease-in-out infinite alternate;
 }
 
-.text-heading-large {
-  font-size: 2.5rem;
-  font-weight: 300;
-  letter-spacing: -0.02em;
-  margin: 0;
+.ambient-backdrop::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 50% 40% at 70% 20%, rgba(251, 191, 36, 0.06) 0%, transparent 50%),
+    radial-gradient(ellipse 40% 30% at 10% 70%, rgba(52, 211, 153, 0.07) 0%, transparent 50%);
+  animation: ambientDrift 40s ease-in-out infinite alternate-reverse;
 }
 
-.text-heading-medium {
-  font-size: 1.75rem;
-  font-weight: 400;
-  letter-spacing: -0.01em;
-  margin: 0;
+@keyframes ambientDrift {
+  0%   { transform: translate(0, 0) scale(1); }
+  33%  { transform: translate(1%, -1.5%) scale(1.01); }
+  66%  { transform: translate(-1%, 1%) scale(0.99); }
+  100% { transform: translate(0.5%, -0.5%) scale(1.005); }
 }
 
-.btn {
-  background: var(--color-accent);
-  color: var(--color-accent-text);
-  border: none;
-  border-radius: var(--radius);
-  padding: 8px 16px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: transform 0.1s ease, background 0.2s ease;
+@media (prefers-reduced-motion: reduce) {
+  .ambient-backdrop::before,
+  .ambient-backdrop::after { animation: none; }
 }
 
-.btn:hover {
-  background: var(--color-accent-hover);
+/* ── Glass utility classes ──────────────────────────── */
+.glass-1 {
+  background: var(--glass-1);
+  backdrop-filter: blur(var(--glass-blur)) saturate(130%);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(130%);
+  border: 1px solid var(--glass-border);
+}
+.glass-2 {
+  background: var(--glass-2);
+  backdrop-filter: blur(var(--glass-blur)) saturate(140%);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(140%);
+  border: 1px solid var(--glass-border);
+}
+.glass-3 {
+  background: var(--glass-3);
+  backdrop-filter: blur(var(--glass-blur)) saturate(150%);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(150%);
+  border: 1px solid rgba(255, 255, 255, 0.18);
 }
 
-.btn:active {
-  transform: scale(0.98);
+/* Fallback: no backdrop-filter support */
+@supports not (backdrop-filter: blur(1px)) {
+  .glass-1, .glass-2, .glass-3 {
+    background: rgba(15, 23, 42, 0.85);
+  }
 }
+
+/* ── Scrollbar ──────────────────────────────────────── */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: var(--radius-pill);
+}
+::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.25); }

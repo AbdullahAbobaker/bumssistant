@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__codebase-memory-mcp__list_projects"
+    ]
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "codebase-memory-mcp"
+  ],
+  "enabledPlugins": {
+    "cybersecurity-skills@anthropic-cybersecurity-skills": true,
+    "superpowers@claude-plugins-official": true
+  }
+}

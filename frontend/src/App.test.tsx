@@ -2,17 +2,17 @@ import { render, screen } from '@testing-library/react'
 import { expect, test } from 'vitest'
 import App from './App'
 
-test('renders TopNav and WelcomeHeader', () => {
+test('renders App shell and widgets', () => {
   render(<App />)
-  // Verify TopNav
-  expect(screen.getByText('BumFlow')).toBeInTheDocument()
-  expect(screen.getByText('Dashboard')).toBeInTheDocument()
-  expect(screen.getByText('Projekte')).toBeInTheDocument()
   
-  // Verify WelcomeHeader
-  expect(screen.getByText('Willkommen, Abdullah')).toBeInTheDocument()
+  // Verify main layout
+  expect(screen.getByLabelText('BumFlow')).toBeInTheDocument()
   
   // Verify chat area
-  expect(screen.getByLabelText('Nachricht an BumFlow')).toBeInTheDocument()
-  expect(screen.getByText('Senden')).toBeInTheDocument()
+  expect(screen.getByLabelText('Nachricht')).toBeInTheDocument()
+  
+  // Verify widgets in the right panel
+  expect(screen.getByText('Aufgaben')).toBeInTheDocument()
+  expect(screen.getByText('Fortschritt')).toBeInTheDocument()
+  expect(screen.getByText('Nutzerprofil')).toBeInTheDocument()
 })
