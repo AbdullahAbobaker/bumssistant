@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { WidgetConfig, AVAILABLE_WIDGETS } from '../config/widgetRegistry';
+import type { WidgetConfig } from '../config/widgetRegistry';
+import { AVAILABLE_WIDGETS } from '../config/widgetRegistry';
 import './DashboardSettingsModal.css';
 
 interface DashboardSettingsModalProps {

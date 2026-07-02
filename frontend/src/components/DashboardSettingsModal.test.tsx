@@ -1,7 +1,7 @@
 import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 import { DashboardSettingsModal } from './DashboardSettingsModal';
-import { WidgetConfig } from '../config/widgetRegistry';
+import type { WidgetConfig } from '../config/widgetRegistry';
 
 describe('DashboardSettingsModal', () => {
   it('retains original props and ID when toggled off and back on', () => {
