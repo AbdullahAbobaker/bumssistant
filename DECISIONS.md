@@ -91,7 +91,12 @@ the way it is. Append; don't rewrite history.
 - DB-backed `ChatPort` + `/chat` endpoint → a runnable local assistant (`docker compose up`).
 - Microsoft Graph + Jira integrations (OAuth on top of Entra SSO) + the warm-start scan.
 - EU production hosting (Hetzner / IONOS / Azure EU / Scaleway).
-- Frontend (React) + Teams bot (second surface).
+- Frontend + Teams bot (second surface). **Frontend framework DECIDED (2026-07-02): Vite + React +
+  TypeScript + Tailwind** (SPA over the FastAPI backend). Design language: **Immersive Ambient
+  Glassmorphism** ("Liquid Glass") — monochrome-first (state via opacity/white-fill, not brand color),
+  time-aware ambient backdrop (user-selectable), legibility-first (scrim under every glass surface,
+  text ≥4.5:1). Full plan: [docs/design/2026-07-02-ui-plan-ambient-glassmorphism.md]. Build not started —
+  first slice = chat surface + app shell + glass token system. Teams bot still open.
 - Data model: does "goal" deserve a first-class memory type? (v1 stores it as a goal-flagged
   `pattern`.) Revisit if goals become central to coaching.
 - Hosting/provider for EU production (candidates: Hetzner, IONOS, Azure EU, Scaleway).
