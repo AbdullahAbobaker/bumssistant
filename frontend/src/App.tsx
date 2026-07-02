@@ -10,6 +10,7 @@ import { CalendarWidget } from './components/widgets/CalendarWidget'
 import type { WidgetConfig } from './config/widgetRegistry'
 import { TopNav } from './components/TopNav'
 import { DashboardSettingsModal } from './components/DashboardSettingsModal'
+import { WIDGET_DEFAULT_SIZES } from './config/widgetRegistry'
 
 type NavItem = 'chat' | 'memory' | 'review' | 'settings'
 
@@ -67,8 +68,6 @@ export default function App() {
     }
   }
 
-  const mainWidgets = userDashboardConfig.filter(w => w.region === 'main')
-  const asideWidgets = userDashboardConfig.filter(w => w.region === 'aside')
 
   return (
     <>
@@ -96,21 +95,27 @@ export default function App() {
           </div>
         </nav>
 
-        {/* ── Main ── */}
+        {/* ── Main Dashboard ── */}
         <main className="app-main">
           {/* Top Nav */}
-          <div style={{ padding: '24px 24px 0' }}>
+          <div style={{ padding: '24px 24px 0', flexShrink: 0 }}>
             <TopNav onOpenSettings={() => setIsSettingsOpen(true)} />
           </div>
 
-          {/* Main content */}
-          {mainWidgets.map(renderWidget)}
+          {/* Grid content */}
+          <div className="dashboard-grid">
+            {userDashboardConfig.map((widget) => {
+              const w = widget.w ?? WIDGET_DEFAULT_SIZES[widget.type].w;
+              const h = widget.h ?? WIDGET_DEFAULT_SIZES[widget.type].h;
+              const className = `widget-wrapper col-span-${w} row-span-${h}`;
+              return (
+                <div key={widget.id} className={className}>
+                  {renderWidget(widget)}
+                </div>
+              );
+            })}
+          </div>
         </main>
-
-        {/* ── Right Panel (Widgets) ── */}
-        <aside className="right-panel" style={{ width: '320px', padding: '24px', borderLeft: '1px solid var(--glass-border)', display: 'flex', flexDirection: 'column', gap: '24px', overflowY: 'auto', flexShrink: 0 }}>
-          {asideWidgets.map(renderWidget)}
-        </aside>
       </div>
 
       {isSettingsOpen && (

@@ -15,8 +15,8 @@ export type WidgetType =
 interface BaseWidgetConfig {
   id: string;
   region?: 'main' | 'aside';
-  w?: number;
-  h?: number;
+  w?: 1 | 2 | 3 | 'full';
+  h?: 1 | 2 | 3;
 }
 
 export type WidgetConfig =
@@ -29,7 +29,7 @@ export type WidgetConfig =
   | (BaseWidgetConfig & { type: 'ACCORDION_LIST'; props: DynamicListWidgetProps });
 
 
-export const WIDGET_DEFAULT_SIZES: Record<WidgetType, { w: number; h: number }> = {
+export const WIDGET_DEFAULT_SIZES: Record<WidgetType, { w: 1 | 2 | 3 | 'full'; h: 1 | 2 | 3 }> = {
   STAT_CARD: { w: 1, h: 1 },
   TASK_LIST: { w: 1, h: 2 },
   PROGRESS: { w: 1, h: 1 },
