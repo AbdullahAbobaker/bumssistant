@@ -457,9 +457,8 @@ git commit -m "feat(ui): add ChatView hero + BumFlow sidebar"
 
 ```tsx
 // frontend/src/App.test.tsx
-import { render, screen } from '@testing-library/react'
+import { render, screen, fireEvent } from '@testing-library/react'
 import { expect, test } from 'vitest'
-import userEvent from '@testing-library/user-event'
 import App from './App'
 
 test('renders the Chat view by default (composer + sidebar)', () => {
@@ -470,25 +469,25 @@ test('renders the Chat view by default (composer + sidebar)', () => {
   expect(screen.getByText('2 Vorschläge zur Bestätigung')).toBeInTheDocument()
 })
 
-test('rail nav switches to Memory empty-state and back to Chat', async () => {
+test('rail nav switches to Memory empty-state and back to Chat', () => {
   render(<App />)
-  await userEvent.click(screen.getByRole('button', { name: 'Memory' }))
-  expect(screen.getByText('Memory')).toBeInTheDocument()                // empty-state title
+  fireEvent.click(screen.getByRole('button', { name: 'Memory' }))
+  // Query the empty-state <h2> by heading role — the rail also has a "Memory"
+  // <span>, so getByText('Memory') would match twice and throw.
+  expect(screen.getByRole('heading', { name: 'Memory' })).toBeInTheDocument()
   expect(screen.queryByLabelText('Nachricht')).not.toBeInTheDocument()  // composer gone
 
-  await userEvent.click(screen.getByRole('button', { name: 'Chat' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Chat' }))
   expect(screen.getByLabelText('Nachricht')).toBeInTheDocument()        // composer back
 })
 
-test('proposed-memories teaser navigates to the Review view', async () => {
+test('proposed-memories teaser navigates to the Review view', () => {
   render(<App />)
-  await userEvent.click(screen.getByRole('button', { name: /Vorschläge/ }))
-  expect(screen.getByText('Review')).toBeInTheDocument()                // Review empty-state title
+  fireEvent.click(screen.getByRole('button', { name: /Vorschläge/ }))
+  expect(screen.getByRole('heading', { name: 'Review' })).toBeInTheDocument() // empty-state <h2>
   expect(screen.queryByLabelText('Nachricht')).not.toBeInTheDocument()
 })
 ```
-
-(If `@testing-library/user-event` did not resolve in Task 3, use `fireEvent.click(...)` from `@testing-library/react` here too — same substitution.)
 
 - [ ] **Step 2: Run test to verify it fails**
 
