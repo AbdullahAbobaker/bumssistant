@@ -261,7 +261,7 @@ class DbChatPort:
                     await s.execute(
                         text(
                             """
-                            SELECT lower(title) AS t FROM memories
+                            SELECT lower(trim(title)) AS t FROM memories
                             WHERE user_id = :uid AND type IN ('task', 'pattern')
                               AND status IN ('proposed', 'confirmed')
                             """

@@ -12,6 +12,9 @@ ALLOWED_TYPES = {"task", "pattern"}
 # Health/mental-state deny-list (Decision #10): AI-inferred memories mentioning these are never
 # stored. Conservative, case-insensitive substring match. (The user's own stress_triggers via
 # onboarding is a separate user_explicit path, not this AI path.)
+# NOTE: substrings deliberately over-block — "diagnose"/"psych"/"krank" also drop legit tasks
+# ("System-Diagnose"). That is the SAFE direction for a hard #10 constraint: do NOT narrow these
+# into word-boundary matches without confirming it can't reopen a health/mental-state leak.
 HEALTH_DENYLIST: tuple[str, ...] = (
     "krank", "krankheit", "depress", "burnout", "angst", "panik", "therapie",
     "diagnose", "medikament", "suizid", "mental health", "psych",

@@ -168,7 +168,9 @@ def _build_extract_payload(user_text: str, reply: str) -> dict:
 
 
 def _parse_candidates(data: dict) -> list[MemoryCandidate]:
-    """Parse the model's JSON array into MemoryCandidates. Malformed/absent -> [] (never raises)."""
+    """Parse the model's JSON array into MemoryCandidates. Malformed/absent *content* -> [];
+    a malformed API envelope (missing choices/message) may raise — the caller's best-effort
+    try/except in DbChatPort.extract_memories contains it."""
     content = data["choices"][0]["message"].get("content")
     if not content:
         return []
