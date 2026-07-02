@@ -147,6 +147,49 @@ def _parse_result(data: dict) -> ChatResult:
     return ChatResult(text=msg.get("content"))
 
 
+_EXTRACT_SYSTEM = (
+    "Extrahiere aus dem folgenden Gespräch NUR konkrete Aufgaben (type 'task') und "
+    "Arbeitsmuster (type 'pattern') der Person. Antworte AUSSCHLIESSLICH mit einem JSON-Array "
+    "von Objekten {\"type\": \"task\"|\"pattern\", \"title\": string, \"note\": string}. "
+    "Extrahiere NIEMALS Gesundheits-, Krankheits- oder mentale/psychische Informationen "
+    "(no health, illness, or mental-state information). Nichts gefunden -> leeres Array []."
+)
+
+
+def _build_extract_payload(user_text: str, reply: str) -> dict:
+    """OpenAI-compatible payload asking for a JSON array of task/pattern candidates."""
+    return {
+        "model": "claude-sonnet-5",
+        "messages": [
+            {"role": "system", "content": _EXTRACT_SYSTEM},
+            {"role": "user", "content": f"Nutzer: {user_text}\nAssistent: {reply}"},
+        ],
+    }
+
+
+def _parse_candidates(data: dict) -> list[MemoryCandidate]:
+    """Parse the model's JSON array into MemoryCandidates. Malformed/absent -> [] (never raises)."""
+    content = data["choices"][0]["message"].get("content")
+    if not content:
+        return []
+    try:
+        items = json.loads(content)
+    except (ValueError, TypeError):
+        return []
+    if not isinstance(items, list):
+        return []
+    out: list[MemoryCandidate] = []
+    for it in items:
+        if isinstance(it, dict) and it.get("type") and it.get("title"):
+            out.append(MemoryCandidate(
+                type=str(it["type"]),
+                title=str(it["title"]),
+                note=str(it.get("note") or ""),
+                confidence=float(it.get("confidence", 0.6)),
+            ))
+    return out
+
+
 class LangdockLLM:
     """Production client. Assumes an OpenAI-compatible API surface."""
 
@@ -177,6 +220,15 @@ class LangdockLLM:
             r = await client.post(f"{self._base}/v1/embeddings", json=payload, headers=self._headers)
             r.raise_for_status()
             return r.json()["data"][0]["embedding"]
+
+    async def extract(self, user_text: str, reply: str) -> list[MemoryCandidate]:
+        payload = _build_extract_payload(user_text, reply)
+        async with httpx.AsyncClient(timeout=60) as client:
+            r = await client.post(
+                f"{self._base}/v1/chat/completions", json=payload, headers=self._headers
+            )
+            r.raise_for_status()
+            return _parse_candidates(r.json())
 
 
 def get_llm(settings: Settings | None = None) -> LLMClient:
