@@ -4,6 +4,7 @@ import { ProfileCard } from './components/widgets/ProfileCard'
 import { TaskWidget } from './components/widgets/TaskWidget'
 import { ProgressWidget } from './components/widgets/ProgressWidget'
 import { ChatWidget } from './components/widgets/ChatWidget'
+import { WidgetConfig } from './config/widgetRegistry'
 
 type NavItem = 'chat' | 'memory' | 'review' | 'settings'
 
@@ -30,12 +31,32 @@ const NAV_ITEMS: { id: NavItem; label: string; Icon: () => JSX.Element }[] = [
   { id: 'settings', label: 'Settings', Icon: Icons.Settings },
 ]
 
+
 function AmbientBackdrop() {
   return <div className="ambient-backdrop" aria-hidden="true" />
 }
 
 export default function App() {
   const [activeNav, setActiveNav] = useState<NavItem>('chat')
+  const [userDashboardConfig] = useState<WidgetConfig[]>([
+    { id: 'tasks', type: 'TASK_LIST', region: 'aside' },
+    { id: 'progress', type: 'PROGRESS', region: 'aside' },
+    { id: 'profile', type: 'PROFILE', region: 'aside' },
+    { id: 'chat', type: 'CHAT', region: 'main' }
+  ])
+
+  const renderWidget = (widget: WidgetConfig) => {
+    switch (widget.type) {
+      case 'PROFILE': return <ProfileCard key={widget.id} />
+      case 'TASK_LIST': return <TaskWidget key={widget.id} />
+      case 'PROGRESS': return <ProgressWidget key={widget.id} />
+      case 'CHAT': return <ChatWidget key={widget.id} />
+      default: return null
+    }
+  }
+
+  const mainWidgets = userDashboardConfig.filter(w => w.region === 'main')
+  const asideWidgets = userDashboardConfig.filter(w => w.region === 'aside')
 
   return (
     <>
@@ -72,15 +93,13 @@ export default function App() {
             <span className="top-bar-subtitle">Dein KI-Arbeitsassistent</span>
           </div>
 
-          {/* Chat surface */}
-          <ChatWidget />
+          {/* Main content */}
+          {mainWidgets.map(renderWidget)}
         </main>
 
         {/* ── Right Panel (Widgets) ── */}
         <aside className="right-panel" style={{ width: '320px', padding: '24px', borderLeft: '1px solid var(--glass-border)', display: 'flex', flexDirection: 'column', gap: '24px', overflowY: 'auto', flexShrink: 0 }}>
-          <ProfileCard />
-          <TaskWidget />
-          <ProgressWidget />
+          {asideWidgets.map(renderWidget)}
         </aside>
       </div>
     </>
