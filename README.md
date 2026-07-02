@@ -54,7 +54,7 @@ app/
 
 Bumssistant exposes its read-only actions as MCP tools over stdio. Point any MCP client at:
 
-    /Applications/anaconda3/bin/python -m app.actions.mcp_server
+    python -m app.actions.mcp_server
 
 Example `.mcp.json` entry:
 

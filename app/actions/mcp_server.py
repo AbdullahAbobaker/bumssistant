@@ -79,7 +79,7 @@ async def serve() -> None:
 
     @server.call_tool()
     async def _call_tool(name: str, arguments: dict | None) -> list[types.TextContent]:
-        act = resolve_read_tool(name)                 # KeyError/PermissionError -> SDK tool error
+        act = resolve_read_tool(name)                 # KeyError/PermissionError/ValidationError -> SDK tool error
         ctx = await _mcp_context()
         result = _to_jsonable(await act.invoke(arguments or {}, ctx))
         return [types.TextContent(type="text", text=json.dumps(result, ensure_ascii=False, default=str))]
