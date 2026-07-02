@@ -1,15 +1,15 @@
 /* frontend/src/index.css */
 :root {
-  --color-bg: #fafafa;
-  --color-surface: rgba(255, 255, 255, 0.6);
+  --color-bg: linear-gradient(135deg, #e2e2e4 0%, #f8f3d6 50%, #ffe8a1 100%);
+  --color-surface: rgba(255, 255, 255, 0.4);
   --color-text: #171717;
   --color-text-muted: #737373;
-  --color-accent: #047857; /* Emerald 700 */
-  --color-accent-hover: #065f46; /* Emerald 800 */
-  --color-accent-text: #ffffff;
-  --color-glass-border: rgba(0, 0, 0, 0.1);
-  --border: #e5e4e7;
-  --radius: 12px;
+  --color-accent: #fbbf24;
+  --color-accent-hover: #f59e0b;
+  --color-accent-text: #1e293b;
+  --color-glass-border: rgba(255, 255, 255, 0.4);
+  --border: rgba(255, 255, 255, 0.5);
+  --radius: 24px;
   --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
 }
 
@@ -31,7 +31,7 @@
 body {
   margin: 0;
   font-family: var(--font-sans);
-  background-color: var(--color-bg);
+  background: var(--color-bg);
   color: var(--color-text);
   -webkit-font-smoothing: antialiased;
   overflow: hidden;
@@ -51,6 +51,30 @@ body {
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border: 1px solid var(--color-glass-border);
+  border-radius: var(--radius);
+}
+
+.glass-dark {
+  background: rgba(30, 41, 59, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #f8fafc;
+  border-radius: var(--radius);
+}
+
+.text-heading-large {
+  font-size: 2.5rem;
+  font-weight: 300;
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+
+.text-heading-medium {
+  font-size: 1.75rem;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+  margin: 0;
 }
 
 .btn {
