@@ -64,6 +64,11 @@
   gap: 8px;
 }
 
+.chat-input-wrapper:focus-within {
+  outline: 2px solid var(--color-primary, #005fcc);
+  outline-offset: 2px;
+}
+
 .chat-input {
   flex: 1;
   background: transparent;

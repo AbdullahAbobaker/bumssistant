@@ -23,7 +23,7 @@ function App() {
           <p className="greeting">Wie kann ich dir helfen?</p>
         </div>
         <div className="chat-input-wrapper glass">
-          <input type="text" placeholder="Nachricht an BumFlow..." className="chat-input" />
+          <input type="text" placeholder="Nachricht an BumFlow..." aria-label="Nachricht an BumFlow" className="chat-input" />
           <button className="btn">Senden</button>
         </div>
       </main>

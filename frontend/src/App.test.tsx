@@ -6,4 +6,8 @@ test('renders sidebar with German headings', () => {
   render(<App />)
   expect(screen.getByText('Aktive Projekte')).toBeInTheDocument()
   expect(screen.getByText('Heute fällig')).toBeInTheDocument()
+  
+  // Verify chat area
+  expect(screen.getByLabelText('Nachricht an BumFlow')).toBeInTheDocument()
+  expect(screen.getByText('Senden')).toBeInTheDocument()
 })
