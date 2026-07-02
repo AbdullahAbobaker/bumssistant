@@ -25,6 +25,7 @@ from app.auth import CurrentUser
 from app.chat.orchestrator import TurnContext
 from app.chat.session import WINDOW_TURNS, Msg
 from app.llm import LLMClient
+from app.memory.extraction import clamp_confidence, dedupe, filter_candidates
 from app.memory.retrieval import Candidate
 
 CANDIDATE_FETCH_LIMIT = 20  # bounded set handed to the pure score-fusion ranker
@@ -248,8 +249,49 @@ class DbChatPort:
             await s.commit()
 
     async def extract_memories(self, user_id: str, user_text: str, reply: str) -> None:
-        """v1 stub. AI-inferred memory (always 'proposed' until the user confirms —
-        Decision #8) is a separate feature. It runs off the request path, so wiring the
-        real extractor in later means replacing this body, not touching the chat loop.
-        Messages stay extraction='pending' for that future worker to pick up."""
-        return None
+        """Async learn-step (#17): infer task/pattern candidates from the turn, drop
+        health/mental-state (#10) and duplicates, and persist them as proposed/ai_inferred (#8)
+        for the user to confirm. Best-effort — extraction never crashes the background task."""
+        try:
+            candidates = filter_candidates(await self._llm.extract(user_text, reply))
+            if not candidates:
+                return
+            async with self._sf() as s:
+                rows = (
+                    await s.execute(
+                        text(
+                            """
+                            SELECT lower(title) AS t FROM memories
+                            WHERE user_id = :uid AND type IN ('task', 'pattern')
+                              AND status IN ('proposed', 'confirmed')
+                            """
+                        ),
+                        {"uid": user_id},
+                    )
+                ).all()
+                existing = {r.t for r in rows}
+                for c in dedupe(candidates, existing):
+                    embedding = await self._llm.embed(f"{c.title} {c.note}".strip())
+                    qvec = "[" + ",".join(f"{x:.6f}" for x in embedding) + "]"
+                    await s.execute(
+                        text(
+                            """
+                            INSERT INTO memories (user_id, type, title, note, source,
+                                                  confidence, status, embedding)
+                            VALUES (:uid, CAST(:type AS memory_type), :title, :note,
+                                    'ai_inferred', :confidence, 'proposed', CAST(:qvec AS vector))
+                            """
+                        ),
+                        {
+                            "uid": user_id,
+                            "type": c.type,
+                            "title": c.title,
+                            "note": c.note,
+                            "confidence": clamp_confidence(c.confidence),
+                            "qvec": qvec,
+                        },
+                    )
+                await s.commit()
+        except Exception:
+            # Best-effort: the reply already went out; a failed learn-step must stay silent.
+            return None
