@@ -1,19 +1,10 @@
 import { useState } from 'react'
 import type { JSX } from 'react'
 import './App.css'
-import { ProfileCard } from './components/widgets/ProfileCard'
-import { TaskWidget } from './components/widgets/TaskWidget'
-import { ProgressWidget } from './components/widgets/ProgressWidget'
-import { ChatWidget } from './components/widgets/ChatWidget'
-import { DynamicStatWidget } from './components/widgets/DynamicStatWidget'
-import { DynamicListWidget } from './components/widgets/DynamicListWidget'
-import { CalendarWidget } from './components/widgets/CalendarWidget'
-import type { WidgetConfig } from './config/widgetRegistry'
-import { TopNav } from './components/TopNav'
-import { DashboardSettingsModal } from './components/DashboardSettingsModal'
-import { WIDGET_DEFAULT_SIZES } from './config/widgetRegistry'
+import { ChatView } from './components/ChatView'
+import { EmptyState } from './components/EmptyState'
 
-type NavItem = 'chat' | 'memory' | 'review' | 'settings'
+type View = 'chat' | 'memory' | 'review' | 'settings'
 
 // ── Icons (inline SVG, Lucide-style) ────────────────
 const Icons = {
@@ -31,44 +22,29 @@ const Icons = {
   ),
 }
 
-const NAV_ITEMS: { id: NavItem; label: string; Icon: () => JSX.Element }[] = [
+const NAV_ITEMS: { id: View; label: string; Icon: () => JSX.Element }[] = [
   { id: 'chat',     label: 'Chat',     Icon: Icons.Chat },
   { id: 'memory',   label: 'Memory',   Icon: Icons.Brain },
   { id: 'review',   label: 'Review',   Icon: Icons.CheckSquare },
   { id: 'settings', label: 'Settings', Icon: Icons.Settings },
 ]
 
-
 function AmbientBackdrop() {
   return <div className="ambient-backdrop" aria-hidden="true" />
 }
 
 export default function App() {
-  const [activeNav, setActiveNav] = useState<NavItem>('chat')
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false)
-  const [userDashboardConfig, setUserDashboardConfig] = useState<WidgetConfig[]>([
-    { id: 'stat1', type: 'STAT_CARD', region: 'aside', props: { title: 'Urlaubsanspruch', value: '28 Tage', color: '#818CF8' } },
-    { id: 'calendar', type: 'CALENDAR', region: 'aside' },
-    { id: 'tasks', type: 'TASK_LIST', region: 'aside', props: { tasks: [{ id: 1, title: 'Interview', completed: false }, { id: 2, title: 'Team-Meeting', completed: true }] } },
-    { id: 'team', type: 'ACCORDION_LIST', region: 'aside', props: { title: 'Teammitglieder', items: [{ label: 'Max Mustermann', content: 'Developer' }, { label: 'Erika Musterfrau', content: 'Designer' }] } },
-    { id: 'progress', type: 'PROGRESS', region: 'aside' },
-    { id: 'profile', type: 'PROFILE', region: 'aside' },
-    { id: 'chat', type: 'CHAT', region: 'main' }
-  ])
+  const [view, setView] = useState<View>('chat')
 
-  const renderWidget = (widget: WidgetConfig) => {
-    switch (widget.type) {
-      case 'PROFILE': return <ProfileCard key={widget.id} {...widget.props} />
-      case 'TASK_LIST': return <TaskWidget key={widget.id} {...widget.props} />
-      case 'PROGRESS': return <ProgressWidget key={widget.id} {...widget.props} />
-      case 'CHAT': return <ChatWidget key={widget.id} {...widget.props} />
-      case 'STAT_CARD': return <DynamicStatWidget key={widget.id} {...widget.props} />
-      case 'ACCORDION_LIST': return <DynamicListWidget key={widget.id} {...widget.props} />
-      case 'CALENDAR': return <CalendarWidget key={widget.id} {...widget.props} />
-      default: return null
+  const renderView = () => {
+    switch (view) {
+      case 'memory':   return <EmptyState title="Memory" />
+      case 'review':   return <EmptyState title="Review" />
+      case 'settings': return <EmptyState title="Settings" />
+      case 'chat':
+      default:         return <ChatView onReviewClick={() => setView('review')} />
     }
   }
-
 
   return (
     <>
@@ -83,10 +59,10 @@ export default function App() {
               <button
                 key={id}
                 id={`nav-${id}`}
-                className={`rail-item ${activeNav === id ? 'active' : ''}`}
-                onClick={() => setActiveNav(id)}
+                className={`rail-item ${view === id ? 'active' : ''}`}
+                onClick={() => setView(id)}
                 aria-label={label}
-                aria-current={activeNav === id ? 'page' : undefined}
+                aria-current={view === id ? 'page' : undefined}
                 title={label}
               >
                 <Icon />
@@ -96,39 +72,11 @@ export default function App() {
           </div>
         </nav>
 
-        {/* ── Main Dashboard ── */}
+        {/* ── Main content ── */}
         <main className="app-main">
-          {/* Top Nav */}
-          <div style={{ padding: '24px 24px 0', flexShrink: 0 }}>
-            <TopNav onOpenSettings={() => setIsSettingsOpen(true)} />
-          </div>
-
-          {/* Grid content */}
-          <div className="dashboard-grid">
-            {userDashboardConfig.map((widget) => {
-              const w = widget.w ?? WIDGET_DEFAULT_SIZES[widget.type].w;
-              const h = widget.h ?? WIDGET_DEFAULT_SIZES[widget.type].h;
-              const className = `widget-wrapper col-span-${w} row-span-${h}`;
-              return (
-                <div key={widget.id} className={className}>
-                  {renderWidget(widget)}
-                </div>
-              );
-            })}
-          </div>
+          {renderView()}
         </main>
       </div>
-
-      {isSettingsOpen && (
-        <DashboardSettingsModal 
-          userDashboardConfig={userDashboardConfig}
-          onSave={(newConfig) => {
-            setUserDashboardConfig(newConfig);
-            setIsSettingsOpen(false);
-          }}
-          onClose={() => setIsSettingsOpen(false)}
-        />
-      )}
     </>
   )
 }
