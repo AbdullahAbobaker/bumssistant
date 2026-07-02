@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import type { JSX } from 'react'
 import './App.css'
 import { ProfileCard } from './components/widgets/ProfileCard'
 import { TaskWidget } from './components/widgets/TaskWidget'

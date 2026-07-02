@@ -55,7 +55,7 @@ export function DashboardSettingsModal({ userDashboardConfig, onSave, onClose }:
           ...prev[type].props,
           [propKey]: value
         }
-      }
+      } as WidgetConfig
     }));
   };
 
@@ -83,7 +83,10 @@ export function DashboardSettingsModal({ userDashboardConfig, onSave, onClose }:
           {AVAILABLE_WIDGETS.map(widgetInfo => {
             const isSelected = activeTypes.has(widgetInfo.type);
             const config = widgetConfigs[widgetInfo.type];
-            
+            // Editable props for the settings inputs. The union type doesn't expose
+            // title/value on every member, so read through a narrowed shape.
+            const editableProps = (config?.props ?? {}) as { title?: string; value?: string };
+
             return (
               <div key={widgetInfo.type} className={`widget-toggle-group glass-1 ${isSelected ? 'selected' : ''}`}>
                 <label className="widget-toggle-item">
@@ -103,7 +106,7 @@ export function DashboardSettingsModal({ userDashboardConfig, onSave, onClose }:
                         <input 
                           type="text" 
                           className="settings-input"
-                          value={config.props?.title || ''} 
+                          value={editableProps.title || ''}
                           onChange={(e) => updateWidgetProp(widgetInfo.type, 'title', e.target.value)} 
                           placeholder="Titel" 
                           aria-label={`${widgetInfo.label} Titel`}
@@ -111,7 +114,7 @@ export function DashboardSettingsModal({ userDashboardConfig, onSave, onClose }:
                         <input 
                           type="text" 
                           className="settings-input"
-                          value={config.props?.value || ''} 
+                          value={editableProps.value || ''}
                           onChange={(e) => updateWidgetProp(widgetInfo.type, 'value', e.target.value)} 
                           placeholder="Wert" 
                           aria-label={`${widgetInfo.label} Wert`}
@@ -123,7 +126,7 @@ export function DashboardSettingsModal({ userDashboardConfig, onSave, onClose }:
                         <input 
                           type="text" 
                           className="settings-input"
-                          value={config.props?.title || ''} 
+                          value={editableProps.title || ''}
                           onChange={(e) => updateWidgetProp(widgetInfo.type, 'title', e.target.value)} 
                           placeholder="Listen Titel" 
                           aria-label={`${widgetInfo.label} Titel`}

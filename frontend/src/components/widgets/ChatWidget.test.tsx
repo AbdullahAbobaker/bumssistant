@@ -4,7 +4,7 @@ import { ChatWidget } from './ChatWidget'
 
 // Mock fetch globally
 const mockFetch = vi.fn()
-global.fetch = mockFetch as any
+globalThis.fetch = mockFetch as unknown as typeof fetch
 
 beforeEach(() => {
   mockFetch.mockReset()

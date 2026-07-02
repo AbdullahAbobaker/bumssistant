@@ -4,7 +4,9 @@
    docs/design/2026-07-02-ui-plan-ambient-glassmorphism.md
    ═══════════════════════════════════════════════════════ */
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+/* DSGVO: do NOT hot-link Google Fonts (leaks user IP to Google — a known German-GDPR
+   issue). Inter should be self-hosted (bundle Inter woff2 + a local @font-face) as a
+   follow-up; until then we fall back to the local Inter/system stack in --font below. */
 
 /* ── Tokens ─────────────────────────────────────────── */
 :root {
