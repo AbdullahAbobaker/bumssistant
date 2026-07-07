@@ -1,7 +1,8 @@
 // frontend/src/components/ChatView.test.tsx
 import { render, screen } from '@testing-library/react'
 import { expect, test, describe, vi } from 'vitest'
-import { ChatView, germanGreeting } from './ChatView'
+import { ChatView } from './ChatView'
+import { germanGreeting } from '../utils/greeting'
 
 vi.mock('../api', () => ({
   getMe: vi.fn().mockResolvedValue({

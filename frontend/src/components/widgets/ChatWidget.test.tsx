@@ -1,6 +1,7 @@
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import { expect, test, vi, beforeEach } from 'vitest'
 import { ChatWidget } from './ChatWidget'
+import { getHistory } from '../../api'
 
 vi.mock('../../api', () => ({
   getHistory: vi.fn().mockResolvedValue([
@@ -73,12 +74,17 @@ test('briefing messages render with the briefing style', async () => {
 })
 
 test('seeds an initial assistant message after a typing beat', async () => {
+  vi.mocked(getHistory).mockResolvedValueOnce([])
   vi.useFakeTimers()
   try {
     render(<ChatWidget initialAssistantMessage="Einrichtung abgeschlossen. Was steht heute an?" />)
     // While "typing", the empty state must NOT show — the typing dots do
     expect(document.querySelector('.typing-indicator')).toBeInTheDocument()
-    await act(async () => { vi.advanceTimersByTime(1000) })
+    await act(async () => {
+      await Promise.resolve()
+      await Promise.resolve()
+      vi.advanceTimersByTime(1000)
+    })
     expect(screen.getByText('Einrichtung abgeschlossen. Was steht heute an?')).toBeInTheDocument()
     expect(document.querySelector('.typing-indicator')).not.toBeInTheDocument()
   } finally {

@@ -99,22 +99,61 @@ export function ChatWidget({ initialAssistantMessage }: ChatWidgetProps = {}) {
   const threadRef  = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
-  // Hydrate the persistent thread (Decision #17) — a reload must not lose it.
+  // Hydrate the persistent thread or seed onboarding assistant message (Decision #17 & Onboarding)
   useEffect(() => {
-    if (initialAssistantMessage) return
     let cancelled = false
+    let timerId: NodeJS.Timeout | undefined
+
+    if (initialAssistantMessage) {
+      setLoading(true)
+    }
+
     getHistory()
       .then(hist => {
-        if (cancelled || hist.length === 0) return
-        setMessages(hist.map(h => ({
-          id: uid(),
-          role: h.role,
-          content: h.content,
-          timestamp: new Date(h.created_at),
-        })))
+        if (cancelled) return
+        if (hist.length > 0) {
+          setMessages(hist.map(h => ({
+            id: uid(),
+            role: h.role,
+            content: h.content,
+            timestamp: new Date(h.created_at),
+          })))
+          if (initialAssistantMessage) {
+            setLoading(false)
+          }
+        } else {
+          if (initialAssistantMessage) {
+            timerId = setTimeout(() => {
+              if (cancelled) return
+              setMessages([{
+                id: uid(), role: 'assistant', content: initialAssistantMessage, timestamp: new Date(),
+              }])
+              setLoading(false)
+            }, 900)
+          } else {
+            setLoading(false)
+          }
+        }
       })
-      .catch(() => { /* fresh thread if history is unavailable */ })
-    return () => { cancelled = true }
+      .catch(() => {
+        if (cancelled) return
+        if (initialAssistantMessage) {
+          timerId = setTimeout(() => {
+            if (cancelled) return
+            setMessages([{
+              id: uid(), role: 'assistant', content: initialAssistantMessage, timestamp: new Date(),
+            }])
+            setLoading(false)
+          }, 900)
+        } else {
+          setLoading(false)
+        }
+      })
+
+    return () => {
+      cancelled = true
+      if (timerId) clearTimeout(timerId)
+    }
   }, [initialAssistantMessage])
 
   // Auto-scroll to bottom on new messages
@@ -130,19 +169,6 @@ export function ChatWidget({ initialAssistantMessage }: ChatWidgetProps = {}) {
     ta.style.height = 'auto'
     ta.style.height = `${Math.min(ta.scrollHeight, 140)}px`
   }, [input])
-
-  // Onboarding handoff: BumFlow is "already typing" when the chat first appears.
-  useEffect(() => {
-    if (!initialAssistantMessage) return
-    setLoading(true)
-    const t = setTimeout(() => {
-      setMessages([{
-        id: uid(), role: 'assistant', content: initialAssistantMessage, timestamp: new Date(),
-      }])
-      setLoading(false)
-    }, 900)
-    return () => clearTimeout(t)
-  }, [initialAssistantMessage])
 
   const sendMessage = useCallback(async (text: string) => {
     const trimmed = text.trim()

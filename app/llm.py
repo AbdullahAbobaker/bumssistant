@@ -159,7 +159,7 @@ _EXTRACT_SYSTEM = (
 def _build_extract_payload(user_text: str, reply: str) -> dict:
     """OpenAI-compatible payload asking for a JSON array of task/pattern candidates."""
     return {
-        "model": "claude-sonnet-5",
+        "model": "gpt-5.4-mini",
         "messages": [
             {"role": "system", "content": _EXTRACT_SYSTEM},
             {"role": "user", "content": f"Nutzer: {user_text}\nAssistent: {reply}"},
@@ -199,7 +199,7 @@ class LangdockLLM:
         self._base = settings.langdock_base_url.rstrip("/")
         self._key = settings.langdock_api_key
         self._embed_model = settings.embedding_model
-        self._chat_model = "claude-sonnet-5"  # via Langdock; swap in config later
+        self._chat_model = "gpt-5.4-mini"  # via Langdock; available models: o4-mini, gpt-5.4, gpt-5.4-mini, gpt-5.5, gpt-5.2-pro, gpt-5.2
 
     @property
     def _headers(self) -> dict[str, str]:
@@ -211,7 +211,7 @@ class LangdockLLM:
         payload = _build_payload(self._chat_model, system, messages, tools)
         async with httpx.AsyncClient(timeout=60) as client:
             r = await client.post(
-                f"{self._base}/v1/chat/completions", json=payload, headers=self._headers
+                f"{self._base}/openai/eu/v1/chat/completions", json=payload, headers=self._headers
             )
             r.raise_for_status()
             return _parse_result(r.json())
@@ -219,7 +219,7 @@ class LangdockLLM:
     async def embed(self, text: str) -> list[float]:
         payload = {"model": self._embed_model, "input": text}
         async with httpx.AsyncClient(timeout=30) as client:
-            r = await client.post(f"{self._base}/v1/embeddings", json=payload, headers=self._headers)
+            r = await client.post(f"{self._base}/openai/eu/v1/embeddings", json=payload, headers=self._headers)
             r.raise_for_status()
             return r.json()["data"][0]["embedding"]
 
@@ -227,15 +227,15 @@ class LangdockLLM:
         payload = _build_extract_payload(user_text, reply)
         async with httpx.AsyncClient(timeout=60) as client:
             r = await client.post(
-                f"{self._base}/v1/chat/completions", json=payload, headers=self._headers
+                f"{self._base}/openai/eu/v1/chat/completions", json=payload, headers=self._headers
             )
             r.raise_for_status()
             return _parse_candidates(r.json())
 
 
 def get_llm(settings: Settings | None = None) -> LLMClient:
-    """Pick the client. Real Langdock only in production WITH a key; otherwise mock."""
+    """Pick the client. Use real Langdock whenever an API key is present; otherwise mock."""
     settings = settings or get_settings()
-    if settings.is_production and settings.langdock_api_key:
+    if settings.langdock_api_key:
         return LangdockLLM(settings)
     return MockLLM(embedding_dim=settings.embedding_dim)
