@@ -1,0 +1,47 @@
+.tone-preview {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 16px 20px;
+  border-radius: var(--radius-md);
+  min-height: 96px;
+}
+
+/* Reserved space before a style is picked, so the card doesn't jump */
+.tone-preview-placeholder {
+  min-height: 96px;
+  border: 1px dashed var(--glass-border);
+  border-radius: var(--radius-md);
+}
+
+.tone-preview-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  color: var(--accent);
+  background: linear-gradient(135deg, rgba(129, 140, 248, 0.3), rgba(99, 102, 241, 0.2));
+  border: 1px solid rgba(129, 140, 248, 0.25);
+}
+
+.tone-preview-text {
+  font-size: 0.9375rem;
+  line-height: 1.6;
+}
+
+.tone-preview-word {
+  opacity: 0;
+  animation: toneWordIn 240ms ease forwards;
+}
+
+@keyframes toneWordIn {
+  to { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tone-preview-word { animation: none; opacity: 1; }
+}
