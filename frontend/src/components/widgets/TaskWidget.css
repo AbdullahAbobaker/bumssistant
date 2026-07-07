@@ -68,3 +68,13 @@
   color: var(--fg);
   line-height: 1.4;
 }
+
+.task-empty {
+  color: var(--fg-muted);
+  font-size: 0.875rem;
+}
+
+.task-item.overdue .task-title {
+  color: var(--fg);
+  font-weight: 600;
+}

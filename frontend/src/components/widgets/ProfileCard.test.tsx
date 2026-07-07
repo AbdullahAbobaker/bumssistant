@@ -1,9 +1,16 @@
 import { render, screen } from '@testing-library/react'
-import { expect, test } from 'vitest'
+import { expect, test, vi } from 'vitest'
 import { ProfileCard } from './ProfileCard'
 
-test('renders ProfileCard with user info', () => {
+vi.mock('../../api', () => ({
+  getMe: vi.fn().mockResolvedValue({
+    email: 'aa@bumg.de', display_name: 'Abdullah Abobaker',
+    environment: 'development', warm_start_scan_mode: 'mock', onboarded: true,
+  }),
+}))
+
+test('shows the real display name from /me', async () => {
   render(<ProfileCard />)
-  expect(screen.getByText('Abdullah')).toBeInTheDocument()
-  expect(screen.getByText('Nutzerprofil')).toBeInTheDocument()
+  expect(await screen.findByText('Abdullah Abobaker')).toBeInTheDocument()
+  expect(screen.getByText('A')).toBeInTheDocument() // avatar initial
 })

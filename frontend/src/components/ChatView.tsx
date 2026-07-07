@@ -1,5 +1,7 @@
 // frontend/src/components/ChatView.tsx
+import { useEffect, useState } from 'react'
 import './ChatView.css'
+import { listProposedMemories } from '../api'
 import { ChatWidget } from './widgets/ChatWidget'
 import { ProfileCard } from './widgets/ProfileCard'
 import { TaskWidget } from './widgets/TaskWidget'
@@ -18,6 +20,16 @@ export interface ChatViewProps {
 
 export function ChatView({ onReviewClick }: ChatViewProps) {
   const greeting = germanGreeting(new Date().getHours())
+  const [proposedCount, setProposedCount] = useState(0)
+
+  useEffect(() => {
+    let cancelled = false
+    listProposedMemories()
+      .then(ms => { if (!cancelled) setProposedCount(ms.length) })
+      .catch(() => { /* teaser simply stays hidden */ })
+    return () => { cancelled = true }
+  }, [])
+
   return (
     <div className="chat-view">
       <div className="chat-view-hero">
@@ -27,7 +39,9 @@ export function ChatView({ onReviewClick }: ChatViewProps) {
         <h2 className="chat-view-greeting">{greeting}</h2>
         <ProfileCard />
         <TaskWidget />
-        <ProposedMemoriesTeaser count={2} onReview={onReviewClick} />
+        {proposedCount > 0 && (
+          <ProposedMemoriesTeaser count={proposedCount} onReview={onReviewClick} />
+        )}
       </aside>
     </div>
   )
