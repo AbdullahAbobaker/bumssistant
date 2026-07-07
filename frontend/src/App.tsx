@@ -1,9 +1,10 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { JSX } from 'react'
 import './App.css'
 import { ChatView } from './components/ChatView'
 import { EmptyState } from './components/EmptyState'
-import { ReviewView } from './components/ReviewView'
+import { fetchMe } from './components/onboarding/api'
+import { OnboardingWizard } from './components/onboarding/OnboardingWizard'
 
 type View = 'chat' | 'memory' | 'review' | 'settings'
 
@@ -36,15 +37,41 @@ function AmbientBackdrop() {
 
 export default function App() {
   const [view, setView] = useState<View>('chat')
+  const [needsOnboarding, setNeedsOnboarding] = useState(false)
+  const [displayName, setDisplayName] = useState('')
+  const [welcomeMessage, setWelcomeMessage] = useState<string | undefined>(undefined)
+
+  useEffect(() => {
+    fetchMe()
+      .then(m => {
+        setDisplayName(m.display_name)
+        // Gate ONLY on an explicit false — a backend that doesn't send the
+        // field yet (app/main.py today) must never trigger the wizard.
+        setNeedsOnboarding(m.onboarded === false)
+      })
+      .catch(() => { /* backend unavailable → normal shell, same as before */ })
+  }, [])
 
   const renderView = () => {
     switch (view) {
       case 'memory':   return <EmptyState title="Memory" />
-      case 'review':   return <ReviewView />
+      case 'review':   return <EmptyState title="Review" />
       case 'settings': return <EmptyState title="Settings" />
       case 'chat':
-      default:         return <ChatView onReviewClick={() => setView('review')} />
+      default:         return <ChatView onReviewClick={() => setView('review')} welcomeMessage={welcomeMessage} />
     }
+  }
+
+  if (needsOnboarding) {
+    return (
+      <>
+        <AmbientBackdrop />
+        <OnboardingWizard
+          displayName={displayName}
+          onComplete={msg => { setWelcomeMessage(msg); setNeedsOnboarding(false) }}
+        />
+      </>
+    )
   }
 
   return (
