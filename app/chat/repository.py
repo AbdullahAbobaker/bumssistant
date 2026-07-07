@@ -75,6 +75,16 @@ def row_to_candidate(row: Any, keyword_rank: float) -> Candidate:
     )
 
 
+def rows_to_history(rows_newest_first: Sequence[Any]) -> list[dict]:
+    """Map newest-first message rows onto a chronological, JSON-able history payload."""
+    rows = list(rows_newest_first)
+    rows.reverse()
+    return [
+        {"role": str(r.role), "content": r.content, "created_at": r.created_at.isoformat()}
+        for r in rows
+    ]
+
+
 # --- user resolution --------------------------------------------------------
 async def get_or_create_user(session: AsyncSession, user: CurrentUser) -> str:
     """Upsert the authenticated principal (Entra oid or dev bypass) and return the
@@ -96,6 +106,28 @@ async def get_or_create_user(session: AsyncSession, user: CurrentUser) -> str:
     ).one()
     await session.commit()
     return str(row.id)
+
+
+async def fetch_history(
+    session_factory: Callable[[], AsyncSession], user_id: str, limit: int = 50
+) -> list[dict]:
+    """The tail of the user's single persistent thread (Decision #17), oldest first —
+    so a page reload doesn't lose the conversation."""
+    async with session_factory() as s:
+        rows = (
+            await s.execute(
+                text(
+                    """
+                    SELECT role, content, created_at FROM messages
+                    WHERE user_id = :uid
+                    ORDER BY created_at DESC
+                    LIMIT :lim
+                    """
+                ),
+                {"uid": user_id, "lim": limit},
+            )
+        ).all()
+    return rows_to_history(rows)
 
 
 # --- the port ---------------------------------------------------------------

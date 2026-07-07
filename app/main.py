@@ -16,7 +16,7 @@ from app.actions.http import mount_actions
 from app.auth import CurrentUser, get_current_user
 from app.background import get_runner
 from app.chat.orchestrator import handle_turn
-from app.chat.repository import DbChatPort, get_or_create_user
+from app.chat.repository import DbChatPort, fetch_history, get_or_create_user
 from app.config import Settings, get_settings
 from app.db import SessionLocal, get_session
 from app.llm import ToolCall, get_llm
@@ -30,6 +30,16 @@ class ChatRequest(BaseModel):
 
 class ChatResponse(BaseModel):
     reply: str
+
+
+class HistoryMessage(BaseModel):
+    role: str
+    content: str
+    created_at: str
+
+
+class HistoryResponse(BaseModel):
+    messages: list[HistoryMessage]
 
 
 @app.get("/health")
@@ -79,6 +89,18 @@ async def chat(
         tools=tools, dispatch=dispatch,
     )
     return ChatResponse(reply=reply)
+
+
+@app.get("/chat/history", response_model=HistoryResponse)
+async def chat_history(
+    limit: int = 50,
+    user: CurrentUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> HistoryResponse:
+    """The persistent thread, oldest first — the frontend hydrates from this on load."""
+    user_id = await get_or_create_user(session, user)
+    msgs = await fetch_history(SessionLocal, user_id, limit=min(max(limit, 1), 200))
+    return HistoryResponse(messages=[HistoryMessage(**m) for m in msgs])
 
 
 # Mount the action registry (GET /actions catalog + POST /actions/{name} dispatcher).
