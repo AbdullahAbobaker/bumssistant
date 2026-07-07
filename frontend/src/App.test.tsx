@@ -11,6 +11,8 @@ vi.mock('./api', () => ({
   listTasks: vi.fn().mockResolvedValue([]),
   completeTask: vi.fn(),
   listProposedMemories: vi.fn().mockResolvedValue([{ id: 'm1' }, { id: 'm2' }]),
+  confirmMemory: vi.fn().mockResolvedValue({ id: 'm1', status: 'confirmed', changed: true }),
+  rejectMemory: vi.fn().mockResolvedValue({ id: 'm1', status: 'rejected', changed: true }),
   getHistory: vi.fn().mockResolvedValue([]),
 }))
 

@@ -1,0 +1,101 @@
+.review-view {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.review-title {
+  color: var(--fg);
+  font-size: 1.5rem;
+}
+
+.review-subtitle {
+  color: var(--fg-muted);
+  margin-bottom: 0.5rem;
+}
+
+.review-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 0;
+}
+
+.review-card {
+  padding: 1.25rem;
+  border-radius: 20px;
+  animation: fadeIn 0.3s ease;
+}
+
+.review-card-head {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
+.review-type {
+  color: var(--fg);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  padding: 0.15rem 0.6rem;
+}
+
+.review-confidence {
+  color: var(--fg-faint);
+  font-size: 0.75rem;
+}
+
+.review-card-title {
+  color: var(--fg);
+  font-size: 1.05rem;
+}
+
+.review-card-note {
+  color: var(--fg-muted);
+  font-size: 0.9rem;
+  margin-top: 0.25rem;
+}
+
+.review-card-actions {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.review-confirm,
+.review-reject {
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 999px;
+  padding: 0.45rem 1.1rem;
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--fg);
+  cursor: pointer;
+}
+
+.review-confirm:hover {
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.review-reject {
+  background: transparent;
+  color: var(--fg-muted);
+}
+
+.review-empty {
+  padding: 2.5rem;
+  border-radius: 20px;
+  text-align: center;
+  color: var(--fg-muted);
+}
+
+.review-empty h2 {
+  color: var(--fg);
+  margin-bottom: 0.5rem;
+}
