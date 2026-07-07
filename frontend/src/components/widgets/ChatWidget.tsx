@@ -102,7 +102,7 @@ export function ChatWidget({ initialAssistantMessage }: ChatWidgetProps = {}) {
   // Hydrate the persistent thread or seed onboarding assistant message (Decision #17 & Onboarding)
   useEffect(() => {
     let cancelled = false
-    let timerId: NodeJS.Timeout | undefined
+    let timerId: ReturnType<typeof setTimeout> | undefined
 
     if (initialAssistantMessage) {
       setLoading(true)
