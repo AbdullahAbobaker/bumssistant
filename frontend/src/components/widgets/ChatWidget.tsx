@@ -1,11 +1,12 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import type { KeyboardEvent } from 'react'
+import { getHistory } from '../../api'
 import '../../App.css'
 
 // ── Types ────────────────────────────────────────────
 interface Message {
   id: string
-  role: 'user' | 'assistant'
+  role: 'user' | 'assistant' | 'briefing'
   content: string
   timestamp: Date
 }
@@ -69,10 +70,12 @@ function TypingIndicator() {
 
 interface MessageBubbleProps { msg: Message }
 function MessageBubble({ msg }: MessageBubbleProps) {
+  const side = msg.role === 'user' ? 'user' : 'assistant'
+  const extra = msg.role === 'briefing' ? ' briefing' : ''
   return (
-    <div className={`message ${msg.role}`}>
+    <div className={`message ${side}${extra}`}>
       <div className="message-avatar">
-        {msg.role === 'assistant' ? 'BF' : 'Du'}
+        {msg.role === 'user' ? 'Du' : 'BF'}
       </div>
       <div>
         <div className="message-bubble">{msg.content}</div>
@@ -90,6 +93,23 @@ export function ChatWidget() {
 
   const threadRef  = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  // Hydrate the persistent thread (Decision #17) — a reload must not lose it.
+  useEffect(() => {
+    let cancelled = false
+    getHistory()
+      .then(hist => {
+        if (cancelled || hist.length === 0) return
+        setMessages(hist.map(h => ({
+          id: uid(),
+          role: h.role,
+          content: h.content,
+          timestamp: new Date(h.created_at),
+        })))
+      })
+      .catch(() => { /* fresh thread if history is unavailable */ })
+    return () => { cancelled = true }
+  }, [])
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {

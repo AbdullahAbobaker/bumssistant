@@ -399,6 +399,12 @@
   to   { opacity: 1; transform: translateY(0); }
 }
 
+/* Proactive briefings: assistant-side, visually distinct (Decision #12) */
+.message.briefing .message-bubble {
+  border-left: 2px solid rgba(255, 255, 255, 0.45);
+  background: rgba(255, 255, 255, 0.10);
+}
+
 /* ── Responsive: hide rail label on narrow ──────────── */
 @media (max-width: 600px) {
   .rail { width: 60px; padding: 16px 8px; }
