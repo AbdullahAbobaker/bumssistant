@@ -28,6 +28,15 @@ test('Stimmt confirms and seals; Anpassen saves edited text; Weiter reports the 
   expect(onDone).toHaveBeenCalledWith(2)
 })
 
+test('saving a blanked edit confirms with undefined — never overwrites the title with empty', async () => {
+  const onResolve = vi.fn().mockResolvedValue(undefined)
+  render(<StepReflections reflections={[TWO[1]]} onResolve={onResolve} onDone={vi.fn()} />)
+  fireEvent.click(screen.getByRole('button', { name: 'Anpassen' }))
+  fireEvent.change(screen.getByLabelText('Erinnerung bearbeiten'), { target: { value: '   ' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Speichern' }))
+  await waitFor(() => expect(onResolve).toHaveBeenCalledWith('r2', 'confirm', undefined))
+})
+
 test('Löschen dismisses and does not count as confirmed', async () => {
   const onResolve = vi.fn().mockResolvedValue(undefined)
   const onDone = vi.fn()

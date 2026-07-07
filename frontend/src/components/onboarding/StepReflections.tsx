@@ -47,7 +47,7 @@ export function StepReflections({ reflections, onResolve, onDone }: StepReflecti
                     onChange={e => setDraft(e.target.value)}
                   />
                   <div className="reflection-actions">
-                    <button className="ob-chip" onClick={() => resolve(r.id, 'confirm', draft)}>
+                    <button className="ob-chip" onClick={() => resolve(r.id, 'confirm', draft.trim() || undefined)}>
                       {COPY.reflections.save}
                     </button>
                   </div>
