@@ -73,17 +73,30 @@ test('proposed-memories teaser navigates to the Review view', async () => {
 })
 
 test('mounts the onboarding wizard when /me says onboarding is incomplete', async () => {
+  // Wizard is stubbed here (see top-of-file mock); its own suite covers its steps.
+  // This guards App's routing: wizard shown, chat shell withheld.
   vi.mocked(fetchMe).mockResolvedValue({
     email: 'anna@bumg.de', display_name: 'Anna Muster', onboarded: false,
   })
   render(<App />)
-  expect(await screen.findByRole('heading', { name: 'Hallo, Anna.' })).toBeInTheDocument()
+  expect(await screen.findByRole('button', { name: 'finish-wizard' })).toBeInTheDocument()
   expect(screen.queryByLabelText('Nachricht')).not.toBeInTheDocument()     // no shell yet
+})
+
+test('seeds BumFlow\'s handoff message into the chat after onboarding completes', async () => {
+  vi.mocked(fetchMe).mockResolvedValue({
+    email: 'anna@bumg.de', display_name: 'Anna Muster', onboarded: false,
+  })
+  render(<App />)
+  fireEvent.click(await screen.findByRole('button', { name: 'finish-wizard' }))
+  // Shell now renders and ChatWidget shows the tone-specific first message.
+  expect(await screen.findByText('BumFlow begrüßt dich in deinem Ton.')).toBeInTheDocument()
+  expect(screen.getByLabelText('Nachricht')).toBeInTheDocument()           // chat shell mounted
 })
 
 test('keeps the normal shell when /me is unavailable', async () => {
   vi.mocked(fetchMe).mockRejectedValue(new Error('HTTP 500'))
   render(<App />)
   expect(await screen.findByLabelText('Nachricht')).toBeInTheDocument()
-  expect(screen.queryByRole('heading', { name: /Hallo,/ })).not.toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'finish-wizard' })).not.toBeInTheDocument()
 })
