@@ -4,7 +4,14 @@
 
 **Goal:** Build the cinematic first-run onboarding wizard for the React frontend per `docs/superpowers/specs/2026-07-06-onboarding-wizard-design.md`, ending in a ChatView handoff where BumFlow's first message types in the chosen tone.
 
-**Architecture:** Frontend-only. A fullscreen `OnboardingWizard` (5-step state machine over the existing ambient backdrop) is mounted by `App.tsx` when `GET /me` reports `onboarding_complete === false`. Steps are pure UI components; the wizard owns all API calls through a small `api.ts` client that defines the backend contract (backend implementation is out of scope — it belongs to the "Make it actually run" branch). All copy lives in a typed `content.ts` module mirroring `app/onboarding/questions.py`.
+**Architecture:** Frontend-only. A fullscreen `OnboardingWizard` (5-step state machine over the existing ambient backdrop) is mounted by `App.tsx` when `GET /me` reports `onboarded === false`. Steps are pure UI components; the wizard owns all API calls through a small `api.ts` client that defines the backend contract (backend implementation is out of scope — it belongs to the "Make it actually run" branch). All copy lives in a typed `content.ts` module mirroring `app/onboarding/questions.py`.
+
+**Companion plan:** the backend side of this contract (`/me.onboarded`, `submit_onboarding`,
+question/answer mapping) is Task 4 of
+[2026-07-06-phase0-close-the-learning-loop.md](2026-07-06-phase0-close-the-learning-loop.md).
+Build Phase 0 Task 4 before (or together with) this plan's Task 10 gate; until then the wizard
+must not mount (fail-open constraint below). This wizard **supersedes** Phase 0's Task 9
+(simple `OnboardingDialog`) — do not build both.
 
 **Tech Stack:** React 19 + TypeScript, Vite, vitest + @testing-library/react (jsdom), plain CSS using the existing token system in `frontend/src/index.css`. **No new dependencies.**
 
@@ -16,14 +23,14 @@
 - Every animation/transition must be disabled under `@media (prefers-reduced-motion: reduce)`.
 - Tests are colocated (`X.test.tsx` next to `X.tsx`) and import `expect, test` etc. explicitly from `vitest` (matching `App.test.tsx`).
 - All npm/vitest commands run from `/Users/abdullahabobaker/Desktop/bumssistant/frontend` (`cd` there first).
-- If the backend never sends `onboarding_complete`, the wizard must NOT mount — the current backend (`app/main.py:/me`) doesn't send it yet, and the app must keep working against it.
+- If the backend never sends `onboarded`, the wizard must NOT mount — the current backend (`app/main.py:/me`) doesn't send it yet, and the app must keep working against it.
 - Commit after every task with a `feat(ui):`/`test(ui):` style message ending in `Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>`.
 
 ### API contract defined by this plan (backend implements later)
 
 | Endpoint | Request | Response |
 |---|---|---|
-| `GET /me` | — | existing fields + optional `onboarding_complete: boolean` |
+| `GET /me` | — | existing fields + optional `onboarded: boolean` |
 | `GET /onboarding/reflections` | — | `{ "reflections": [{ "id": string, "text": string }] }` |
 | `POST /onboarding/answers` | `{ "key": string, "value": string }` | 2xx |
 | `POST /onboarding/reflections/{id}` | `{ "action": "confirm" \| "dismiss", "text"?: string }` (edit = confirm with `text`) | 2xx |
@@ -207,7 +214,7 @@ Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
 **Interfaces:**
 - Consumes: nothing (uses global `fetch`, same pattern as `ChatWidget.tsx:postChat`).
 - Produces:
-  - `interface Me { email: string; display_name: string; onboarding_complete?: boolean }`
+  - `interface Me { email: string; display_name: string; onboarded?: boolean }`
   - `interface Reflection { id: string; text: string }`
   - `fetchMe(): Promise<Me>`
   - `fetchReflections(): Promise<Reflection[]>`
@@ -236,13 +243,13 @@ afterEach(() => vi.unstubAllGlobals())
 
 test('fetchMe returns the /me payload', async () => {
   const fetchMock = vi.fn().mockResolvedValue(jsonResponse({
-    email: 'a@bumg.de', display_name: 'Anna Muster', onboarding_complete: false,
+    email: 'a@bumg.de', display_name: 'Anna Muster', onboarded: false,
   }))
   vi.stubGlobal('fetch', fetchMock)
   const me = await fetchMe()
   expect(fetchMock).toHaveBeenCalledWith('/me')
   expect(me.display_name).toBe('Anna Muster')
-  expect(me.onboarding_complete).toBe(false)
+  expect(me.onboarded).toBe(false)
 })
 
 test('fetchReflections unwraps the reflections array', async () => {
@@ -311,7 +318,7 @@ Create `frontend/src/components/onboarding/api.ts`:
 // Onboarding API client. This file DEFINES the backend contract — the backend
 // endpoints (except /me) are implemented in the "Make it actually run" branch.
 //
-//   GET  /me                          → { email, display_name, onboarding_complete?: boolean, ... }
+//   GET  /me                          → { email, display_name, onboarded?: boolean, ... }
 //   GET  /onboarding/reflections      → { reflections: [{ id, text }] }
 //   POST /onboarding/answers          ← { key, value }
 //   POST /onboarding/reflections/{id} ← { action: 'confirm' | 'dismiss', text? }  (edit = confirm + text)
@@ -320,7 +327,7 @@ Create `frontend/src/components/onboarding/api.ts`:
 export interface Me {
   email: string
   display_name: string
-  onboarding_complete?: boolean
+  onboarded?: boolean
 }
 
 export interface Reflection {
@@ -1674,7 +1681,7 @@ Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
 
 **Interfaces:**
 - Consumes: `fetchMe`, `Me` from `./components/onboarding/api`; `OnboardingWizard` from `./components/onboarding/OnboardingWizard`; `ChatView`'s `welcomeMessage` prop (Task 9).
-- Produces: gate behavior — wizard mounts **only** when `/me` resolves with `onboarding_complete === false`. Missing field, `true`, or a failed `/me` fetch → normal shell (current backend sends no such field, so nothing changes for it).
+- Produces: gate behavior — wizard mounts **only** when `/me` resolves with `onboarded === false`. Missing field, `true`, or a failed `/me` fetch → normal shell (current backend sends no such field, so nothing changes for it).
 
 - [ ] **Step 1: Update the test file**
 
@@ -1699,7 +1706,7 @@ import App from './App'
 
 beforeEach(() => {
   vi.mocked(fetchMe).mockResolvedValue({
-    email: 'test@bumg.de', display_name: 'Test User', onboarding_complete: true,
+    email: 'test@bumg.de', display_name: 'Test User', onboarded: true,
   })
 })
 
@@ -1732,7 +1739,7 @@ test('proposed-memories teaser navigates to the Review view', async () => {
 
 test('mounts the onboarding wizard when /me says onboarding is incomplete', async () => {
   vi.mocked(fetchMe).mockResolvedValue({
-    email: 'anna@bumg.de', display_name: 'Anna Muster', onboarding_complete: false,
+    email: 'anna@bumg.de', display_name: 'Anna Muster', onboarded: false,
   })
   render(<App />)
   expect(await screen.findByRole('heading', { name: 'Hallo, Anna.' })).toBeInTheDocument()
@@ -1784,7 +1791,7 @@ export default function App() {
         setDisplayName(m.display_name)
         // Gate ONLY on an explicit false — a backend that doesn't send the
         // field yet (app/main.py today) must never trigger the wizard.
-        setNeedsOnboarding(m.onboarding_complete === false)
+        setNeedsOnboarding(m.onboarded === false)
       })
       .catch(() => { /* backend unavailable → normal shell, same as before */ })
   }, [])
