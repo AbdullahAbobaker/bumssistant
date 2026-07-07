@@ -5,5 +5,6 @@ adapter (HTTP, CLI, future agent-tool/MCP) that reads the registry sees them.
 """
 from app.actions.base import Action, ActionContext, Registry, action, registry
 from app.actions import builtin as _builtin  # noqa: F401  registers built-in actions
+from app.actions import memory_review as _memory_review  # noqa: F401  registers review actions
 
 __all__ = ["Action", "ActionContext", "Registry", "action", "registry"]
