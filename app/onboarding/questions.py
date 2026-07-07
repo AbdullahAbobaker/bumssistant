@@ -66,3 +66,40 @@ def required_keys() -> list[str]:
 def is_complete(answers: dict[str, str]) -> bool:
     """Onboarding is 'done' once every required question has a non-empty answer."""
     return all(answers.get(k) for k in required_keys())
+
+
+@dataclass(frozen=True)
+class MemoryWrite:
+    """One memory row an onboarding answer becomes (parsed from the question's target)."""
+
+    type: str                 # memory_type enum value
+    title: str
+    detail_kind: str | None   # details->'kind' (e.g. 'goal', 'stress_trigger')
+
+
+def _question(key: str) -> ColdQuestion | None:
+    return next((q for q in COLD_QUESTIONS if q.key == key), None)
+
+
+def validate_answer(key: str, value: str) -> str | None:
+    """Error message for one incremental wizard answer, or None if it may be saved."""
+    q = _question(key)
+    if q is None:
+        return f"Unbekannte Frage: {key}"
+    val = value.strip()
+    if not val:
+        return f"Leere Antwort: {key}"
+    if q.kind == "choice" and val not in q.options:
+        return f"Ungültige Antwort für {key}: {val}"
+    return None
+
+
+def answer_to_write(key: str, value: str) -> MemoryWrite | None:
+    """Map one answer onto its memory write via the question's target ('type' or
+    'type:kind'). Unknown keys and blank values produce nothing."""
+    q = _question(key)
+    val = value.strip()
+    if q is None or not val:
+        return None
+    mtype, _, kind = q.target.partition(":")
+    return MemoryWrite(type=mtype, title=val, detail_kind=kind or None)

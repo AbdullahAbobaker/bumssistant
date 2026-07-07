@@ -20,6 +20,7 @@ from app.chat.repository import DbChatPort, fetch_history, get_or_create_user
 from app.config import Settings, get_settings
 from app.db import SessionLocal, get_session
 from app.llm import ToolCall, get_llm
+from app.onboarding.http import router as onboarding_router
 
 app = FastAPI(title="Bumssistant", version="0.1.0")
 
@@ -53,13 +54,21 @@ async def health(session: AsyncSession = Depends(get_session)) -> dict:
 async def me(
     user: CurrentUser = Depends(get_current_user),
     settings: Settings = Depends(get_settings),
+    session: AsyncSession = Depends(get_session),
 ) -> dict:
-    """Who am I? Confirms auth (real or dev-bypass) and the active safety mode."""
+    """Who am I? Confirms auth (real or dev-bypass), safety mode, and onboarding state."""
+    user_id = await get_or_create_user(session, user)
+    row = (
+        await session.execute(
+            text("SELECT onboarded_at FROM users WHERE id = :uid"), {"uid": user_id}
+        )
+    ).one()
     return {
         "email": user.email,
         "display_name": user.display_name,
         "environment": settings.environment,
         "warm_start_scan_mode": settings.effective_scan_mode,
+        "onboarded": row.onboarded_at is not None,
     }
 
 
@@ -105,3 +114,4 @@ async def chat_history(
 
 # Mount the action registry (GET /actions catalog + POST /actions/{name} dispatcher).
 mount_actions(app)
+app.include_router(onboarding_router)
