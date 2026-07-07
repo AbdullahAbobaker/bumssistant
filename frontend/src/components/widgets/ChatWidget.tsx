@@ -85,7 +85,12 @@ function MessageBubble({ msg }: MessageBubbleProps) {
   )
 }
 
-export function ChatWidget() {
+export interface ChatWidgetProps {
+  /** Set by the onboarding handoff: BumFlow's first message, pre-typed in the chosen tone. */
+  initialAssistantMessage?: string
+}
+
+export function ChatWidget({ initialAssistantMessage }: ChatWidgetProps = {}) {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput]       = useState('')
   const [loading, setLoading]   = useState(false)
@@ -96,6 +101,7 @@ export function ChatWidget() {
 
   // Hydrate the persistent thread (Decision #17) — a reload must not lose it.
   useEffect(() => {
+    if (initialAssistantMessage) return
     let cancelled = false
     getHistory()
       .then(hist => {
@@ -109,7 +115,7 @@ export function ChatWidget() {
       })
       .catch(() => { /* fresh thread if history is unavailable */ })
     return () => { cancelled = true }
-  }, [])
+  }, [initialAssistantMessage])
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {
@@ -124,6 +130,19 @@ export function ChatWidget() {
     ta.style.height = 'auto'
     ta.style.height = `${Math.min(ta.scrollHeight, 140)}px`
   }, [input])
+
+  // Onboarding handoff: BumFlow is "already typing" when the chat first appears.
+  useEffect(() => {
+    if (!initialAssistantMessage) return
+    setLoading(true)
+    const t = setTimeout(() => {
+      setMessages([{
+        id: uid(), role: 'assistant', content: initialAssistantMessage, timestamp: new Date(),
+      }])
+      setLoading(false)
+    }, 900)
+    return () => clearTimeout(t)
+  }, [initialAssistantMessage])
 
   const sendMessage = useCallback(async (text: string) => {
     const trimmed = text.trim()

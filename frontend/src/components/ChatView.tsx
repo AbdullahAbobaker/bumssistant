@@ -7,18 +7,13 @@ import { ProfileCard } from './widgets/ProfileCard'
 import { TaskWidget } from './widgets/TaskWidget'
 import { ProposedMemoriesTeaser } from './widgets/ProposedMemoriesTeaser'
 
-export function germanGreeting(hour: number): string {
-  if (hour >= 5 && hour < 12) return 'Guten Morgen'
-  if (hour >= 12 && hour < 18) return 'Guten Tag'
-  if (hour >= 18 && hour < 23) return 'Guten Abend'
-  return 'Gute Nacht'
-}
-
+import { germanGreeting } from '../utils/greeting'
 export interface ChatViewProps {
   onReviewClick: () => void
+  welcomeMessage?: string
 }
 
-export function ChatView({ onReviewClick }: ChatViewProps) {
+export function ChatView({ onReviewClick, welcomeMessage }: ChatViewProps) {
   const greeting = germanGreeting(new Date().getHours())
   const [proposedCount, setProposedCount] = useState(0)
 
@@ -33,7 +28,7 @@ export function ChatView({ onReviewClick }: ChatViewProps) {
   return (
     <div className="chat-view">
       <div className="chat-view-hero">
-        <ChatWidget />
+        <ChatWidget initialAssistantMessage={welcomeMessage} />
       </div>
       <aside className="chat-view-sidebar" aria-label="Übersicht">
         <h2 className="chat-view-greeting">{greeting}</h2>
