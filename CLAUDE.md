@@ -39,6 +39,10 @@ Backend: Python + FastAPI. Auth: Microsoft Entra ID SSO (dev bypass locally). Me
 | Background seam (in-process → arq later) | `app/background.py` | ✅ |
 | Chat orchestrator (the spine) | `app/chat/orchestrator.py` | ✅ end-to-end |
 | API skeleton (`/health`, `/me`) | `app/main.py` | — |
+| Review + task actions | `app/actions/{memory_review,tasks}.py` | ✅ |
+| Onboarding API (wizard contract) | `app/onboarding/http.py` | ✅ |
+| Chat history endpoint | `app/chat/repository.py` + `/chat/history` | ✅ |
+| Frontend slice 2 (Review) + live sidebar | `frontend/src/` | ✅ |
 
 ## Run locally (no corporate account, no real data)
 ```bash
@@ -52,8 +56,11 @@ uvicorn app.main:app --reload # http://localhost:8000/docs
 Safety: `DEV_AUTH_BYPASS=true` (refused in prod) + warm-start scan forced to `mock` outside
 production. Real employee data never touches a dev laptop.
 
-## NEXT UP (pick from DECISIONS.md "Open" section)
-The chosen next branch is **"Make it actually run"**: build the DB-backed `ChatPort`
-(SQLAlchemy models + repository implementing `app/chat/orchestrator.ChatPort`) and a
-`POST /chat` endpoint, so `docker compose up` yields a working BumFlow you can talk to locally.
-Then: Graph/Jira integrations + warm-start scan → EU hosting → React frontend + Teams bot.
+## NEXT UP (see [docs/ROADMAP.md](docs/ROADMAP.md))
+**Phase 0 (close the learning loop) is complete**: memory review actions + panel, task actions +
+live sidebar, `/chat/history` (reload-safe thread), and the onboarding backend contract are built
+and tested. The onboarding *UI* is the dedicated
+[onboarding-wizard plan](docs/superpowers/plans/2026-07-06-onboarding-wizard.md).
+Next up is **ROADMAP.md Phase 1 — the proactive scheduler** (APScheduler behind a `Scheduler`
+seam: due-rule engine → composers → `role='briefing'` messages), then in-app briefing delivery.
+Then Phase 2 (context: Entra auth → Graph calendar → Jira → warm-start) and Phase 3 (team/prod).
