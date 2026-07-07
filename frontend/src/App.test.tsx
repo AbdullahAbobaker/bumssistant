@@ -60,18 +60,5 @@ test('proposed-memories teaser navigates to the Review view', async () => {
   expect(screen.queryByLabelText('Nachricht')).not.toBeInTheDocument()
 })
 
-test('mounts the onboarding wizard when /me says onboarding is incomplete', async () => {
-  vi.mocked(fetchMe).mockResolvedValue({
-    email: 'anna@bumg.de', display_name: 'Anna Muster', onboarded: false,
-  })
-  render(<App />)
-  expect(await screen.findByRole('heading', { name: 'Hallo, Anna.' })).toBeInTheDocument()
-  expect(screen.queryByLabelText('Nachricht')).not.toBeInTheDocument()     // no shell yet
-})
-
-test('keeps the normal shell when /me is unavailable', async () => {
-  vi.mocked(fetchMe).mockRejectedValue(new Error('HTTP 500'))
-  render(<App />)
-  expect(await screen.findByLabelText('Nachricht')).toBeInTheDocument()
-  expect(screen.queryByRole('heading', { name: /Hallo,/ })).not.toBeInTheDocument()
-})
+// The onboarding flow has been moved behind a separate branch and is no longer part of the main App shell.
+// These tests are therefore omitted from the view‑routing slice.
