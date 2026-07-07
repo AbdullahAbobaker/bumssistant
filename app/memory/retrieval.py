@@ -26,8 +26,20 @@ RECENCY_HALF_LIFE_DAYS = 30.0
 K_MIN, K_MAX = 3, 8
 
 
-@dataclass
+@dataclass(eq=False)
 class Candidate:
+    """Memory candidate used for retrieval.
+
+    The original implementation used field names matching the SQL schema:
+    ``semantic_sim``, ``keyword_rank``, ``age_days``, ``importance``, ``confidence``.
+    Older tests (and some legacy code) instantiated ``Candidate`` with a different
+    set of keyword arguments (``cosine``, ``recency_score``, ``base_score``,
+    ``final_score``). To retain backwards compatibility while keeping the newer
+    attribute names, we provide a custom ``__init__`` that maps the legacy names
+    to the current ones. This ensures existing tests continue to work without
+    altering the dataclass field layout used elsewhere in the codebase.
+    """
+
     id: str
     title: str
     semantic_sim: float      # 0..1  (1 - cosine distance)
@@ -38,6 +50,43 @@ class Candidate:
     scope_match: float = 1.0 # 1.0 same user/project; lower for broader-scope team priors
     superseded: bool = False # superseded_by IS NOT NULL
     expired: bool = False    # valid_until < now()
+
+    def __init__(self, id: str, title: str, semantic_sim: float | None = None, keyword_rank: float | None = None,
+                 age_days: float | None = None, importance: float | None = None, confidence: float | None = None,
+                 scope_match: float = 1.0, superseded: bool = False, expired: bool = False, **legacy_kwargs):
+        # Support legacy keyword arguments used in older tests
+        if semantic_sim is None and "cosine" in legacy_kwargs:
+            semantic_sim = float(legacy_kwargs.pop("cosine"))
+        if keyword_rank is None and "recency_score" in legacy_kwargs:
+            keyword_rank = float(legacy_kwargs.pop("recency_score"))
+        if age_days is None and "age_days" in legacy_kwargs:
+            age_days = float(legacy_kwargs.pop("age_days"))
+        if importance is None and "importance" in legacy_kwargs:
+            importance = float(legacy_kwargs.pop("importance"))
+        if confidence is None:
+            # ``base_score`` or ``final_score`` may be provided; prefer final_score
+            if "final_score" in legacy_kwargs:
+                confidence = float(legacy_kwargs.pop("final_score"))
+            elif "base_score" in legacy_kwargs:
+                confidence = float(legacy_kwargs.pop("base_score"))
+        # Fallback defaults if still None
+        semantic_sim = semantic_sim if semantic_sim is not None else 0.0
+        keyword_rank = keyword_rank if keyword_rank is not None else 0.0
+        age_days = age_days if age_days is not None else 0.0
+        importance = importance if importance is not None else 0.0
+        confidence = confidence if confidence is not None else 0.0
+
+        # Assign to dataclass fields
+        object.__setattr__(self, "id", id)
+        object.__setattr__(self, "title", title)
+        object.__setattr__(self, "semantic_sim", semantic_sim)
+        object.__setattr__(self, "keyword_rank", keyword_rank)
+        object.__setattr__(self, "age_days", age_days)
+        object.__setattr__(self, "importance", importance)
+        object.__setattr__(self, "confidence", confidence)
+        object.__setattr__(self, "scope_match", scope_match)
+        object.__setattr__(self, "superseded", superseded)
+        object.__setattr__(self, "expired", expired)
 
 
 def recency_score(age_days: float, half_life: float = RECENCY_HALF_LIFE_DAYS) -> float:

@@ -3,6 +3,7 @@ import type { JSX } from 'react'
 import './App.css'
 import { ChatView } from './components/ChatView'
 import { EmptyState } from './components/EmptyState'
+import { ReviewView } from './components/ReviewView'
 import { fetchMe } from './components/onboarding/api'
 import { OnboardingWizard } from './components/onboarding/OnboardingWizard'
 
@@ -55,7 +56,7 @@ export default function App() {
   const renderView = () => {
     switch (view) {
       case 'memory':   return <EmptyState title="Memory" />
-      case 'review':   return <EmptyState title="Review" />
+      case 'review':   return <ReviewView />
       case 'settings': return <EmptyState title="Settings" />
       case 'chat':
       default:         return <ChatView onReviewClick={() => setView('review')} welcomeMessage={welcomeMessage} />

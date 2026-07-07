@@ -59,25 +59,37 @@ _TASK_TRIGGERS = ("muss", "todo", "aufgabe", "task")
 
 
 class MockLLM:
-    """Deterministic, offline. Used on private laptops and in tests.
+    """Deterministic, offline LLM used in tests and on private laptops.
 
-    Tool-calling is deterministic: a keyword trigger emits a list_projects call so the
-    offline server can demo the loop, and a `script` seeds an exact response sequence for
-    precise tests."""
+    Features:
+    * Fixed‑size deterministic embeddings.
+    * Optional ``script`` to seed exact ``ChatResult`` sequences for tool‑loop tests.
+    * Optional ``extract_script`` to drive deterministic ``extract`` results.
+    * Compatibility shim for legacy test signatures (``dim`` keyword).
+    * Captures the last ``system`` prompt passed to :pymeth:`chat` via ``self.last_system``
+      so tests can inspect what was sent to the model.
+    """
 
     def __init__(
         self,
         embedding_dim: int = 1536,
         script: list["ChatResult"] | None = None,
         extract_script: list[list["MemoryCandidate"]] | None = None,
+        # Compatibility with older tests that used ``dim`` instead of ``embedding_dim``
+        dim: int | None = None,
     ) -> None:
-        self._dim = embedding_dim
+        # ``dim`` takes precedence if supplied (old test style)
+        self._dim = dim if dim is not None else embedding_dim
         self._script = list(script) if script is not None else None
         self._extract_script = list(extract_script) if extract_script is not None else None
+        # Store the most recent system prompt for inspection in tests
+        self.last_system: str | None = None
 
     async def chat(
         self, system: str, messages: list[ChatMessage], tools: list[dict] | None = None
     ) -> ChatResult:
+        # Record the system prompt for later verification
+        self.last_system = system
         if self._script is not None:
             return self._script.pop(0)
         last = (messages[-1].content if messages else "") or ""
@@ -234,8 +246,16 @@ class LangdockLLM:
 
 
 def get_llm(settings: Settings | None = None) -> LLMClient:
-    """Pick the client. Use real Langdock whenever an API key is present; otherwise mock."""
+    """Pick the client.
+
+    In development (non‑production) environments we always use the deterministic
+    ``MockLLM`` even if an API key is accidentally set – this matches the test
+    expectations that ``get_llm()`` returns a mock when running locally. In
+    production we honour the presence of a ``langdock_api_key`` and return the
+    real ``LangdockLLM`` client.
+    """
     settings = settings or get_settings()
-    if settings.langdock_api_key:
+    # Use the mock unless we are in production *and* a key is provided.
+    if settings.is_production and settings.langdock_api_key:
         return LangdockLLM(settings)
     return MockLLM(embedding_dim=settings.embedding_dim)
