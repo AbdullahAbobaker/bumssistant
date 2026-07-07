@@ -1,0 +1,204 @@
+/* ═══ Onboarding wizard — one morphing glass-3 card over the ambient backdrop ═══ */
+
+.onboarding {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+/* Backdrop-as-narrator: a per-step tint layered over the ambient backdrop.
+   Hue journey: indigo → violet → cyan → green → warm amber at completion. */
+.onboarding-tint {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  transition: background 800ms ease;
+}
+.onboarding[data-step='welcome']     .onboarding-tint { background: radial-gradient(ellipse 70% 50% at 50% 30%, rgba(99, 102, 241, 0.18), transparent 65%); }
+.onboarding[data-step='tone']        .onboarding-tint { background: radial-gradient(ellipse 70% 50% at 30% 40%, rgba(139, 92, 246, 0.18), transparent 65%); }
+.onboarding[data-step='reflections'] .onboarding-tint { background: radial-gradient(ellipse 70% 50% at 70% 40%, rgba(14, 165, 210, 0.16), transparent 65%); }
+.onboarding[data-step='goals']       .onboarding-tint { background: radial-gradient(ellipse 70% 50% at 40% 60%, rgba(52, 211, 153, 0.12), transparent 65%); }
+.onboarding[data-step='handoff']     .onboarding-tint { background: radial-gradient(ellipse 70% 50% at 50% 40%, rgba(251, 191, 36, 0.14), transparent 65%); }
+
+.onboarding-card {
+  position: relative;
+  width: min(680px, 100%);
+  max-height: 100%;
+  overflow-y: auto;
+  border-radius: var(--radius-lg);
+  padding: 48px;
+  box-shadow: var(--shadow-ambient);
+}
+
+/* Thread progress: a thin luminous line along the card's top edge */
+.onboarding-progress {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--accent), rgba(129, 140, 248, 0.4));
+  transform-origin: left;
+  transition: transform 600ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* ── Step layout & typography ── */
+.ob-step { display: flex; flex-direction: column; gap: 20px; }
+.ob-headline { font-size: 2.25rem; font-weight: 300; letter-spacing: -0.025em; line-height: 1.2; }
+.ob-body { font-size: 0.9375rem; line-height: 1.6; color: var(--fg-muted); max-width: 48ch; }
+.ob-trust, .ob-footnote { font-size: 0.8125rem; color: var(--fg-faint); }
+.ob-recap { font-size: 0.9375rem; color: var(--fg-muted); }
+
+/* ── Primary CTA — the ONE accent element per screen ── */
+.ob-cta {
+  align-self: flex-start;
+  padding: 12px 28px;
+  border-radius: var(--radius-pill);
+  border: 1px solid rgba(129, 140, 248, 0.4);
+  background: var(--accent-dim);
+  color: var(--fg);
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 160ms ease, transform 160ms ease;
+}
+.ob-cta:hover:not(:disabled) { background: rgba(129, 140, 248, 0.35); transform: translateY(-1px); }
+.ob-cta:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.ob-skip {
+  background: none;
+  border: none;
+  color: var(--fg-muted);
+  font: inherit;
+  font-size: 0.8125rem;
+  text-decoration: underline;
+  cursor: pointer;
+  align-self: flex-start;
+}
+
+/* ── Tone cards (Step 1) ── */
+.tone-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+.tone-card {
+  padding: 16px 20px;
+  border-radius: var(--radius-md);
+  background: var(--control-inactive);
+  border: 1px solid var(--glass-border);
+  color: var(--fg);
+  font: inherit;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition: background 160ms ease, border-color 160ms ease, transform 160ms ease;
+}
+.tone-card:hover { background: var(--control-active); transform: translateY(-2px); }
+.tone-card.selected { background: var(--control-active); border-color: rgba(255, 255, 255, 0.35); }
+
+/* ── Reflection cards (Step 2) ── */
+.reflection-stack { list-style: none; display: flex; flex-direction: column; gap: 12px; }
+.reflection-card {
+  padding: 16px 20px;
+  border-radius: var(--radius-md);
+  transition: opacity 400ms ease;
+}
+/* The "seal": a brief accent glow when a memory is confirmed, then it files away */
+.reflection-card.confirmed { animation: sealGlow 600ms ease; opacity: 0.45; }
+.reflection-card.dismissed { opacity: 0.25; text-decoration: line-through; }
+@keyframes sealGlow {
+  0%   { box-shadow: 0 0 0 0 rgba(129, 140, 248, 0); }
+  40%  { box-shadow: 0 0 24px 2px rgba(129, 140, 248, 0.45); }
+  100% { box-shadow: 0 0 0 0 rgba(129, 140, 248, 0); }
+}
+.reflection-text { font-size: 0.9375rem; line-height: 1.6; }
+.reflection-actions { display: flex; gap: 8px; margin-top: 12px; }
+.reflection-edit {
+  width: 100%;
+  min-height: 64px;
+  padding: 12px 16px;
+  border-radius: var(--radius-sm);
+  background: var(--control-inactive);
+  border: 1px solid var(--glass-border);
+  color: var(--fg);
+  font: inherit;
+  resize: vertical;
+}
+
+/* ── Secondary chips (white-opacity, never accent) ── */
+.ob-chip {
+  padding: 6px 14px;
+  border-radius: var(--radius-pill);
+  background: var(--control-inactive);
+  border: 1px solid var(--glass-border);
+  color: var(--fg);
+  font: inherit;
+  font-size: 0.8125rem;
+  cursor: pointer;
+  transition: background 160ms ease;
+}
+.ob-chip:hover { background: var(--control-active); }
+.ob-chip.danger { color: var(--destructive); }
+
+/* ── Text inputs (Step 3) ── */
+.ob-label { display: flex; flex-direction: column; gap: 8px; font-size: 0.9375rem; font-weight: 500; }
+.ob-help { font-size: 0.8125rem; font-weight: 400; color: var(--fg-faint); }
+.ob-input {
+  min-height: 72px;
+  padding: 12px 16px;
+  border-radius: var(--radius-sm);
+  background: var(--control-inactive);
+  border: 1px solid var(--glass-border);
+  color: var(--fg);
+  font: inherit;
+  resize: vertical;
+}
+.ob-input:focus { outline: none; border-color: rgba(129, 140, 248, 0.5); }
+
+.ob-error {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--destructive);
+  font-size: 0.8125rem;
+}
+
+/* ── Staggered entrance (60ms cascade) ── */
+.stagger-1, .stagger-2, .stagger-3, .stagger-4, .stagger-5 {
+  opacity: 0;
+  transform: translateY(8px);
+  animation: obFadeUp 400ms ease forwards;
+}
+.stagger-1 { animation-delay: 0ms; }
+.stagger-2 { animation-delay: 60ms; }
+.stagger-3 { animation-delay: 120ms; }
+.stagger-4 { animation-delay: 180ms; }
+.stagger-5 { animation-delay: 240ms; }
+@keyframes obFadeUp {
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Small screens ── */
+@media (max-width: 640px) {
+  .onboarding-card { padding: 28px 20px; }
+  .tone-grid { grid-template-columns: 1fr; }
+  .ob-headline { font-size: 1.75rem; }
+}
+
+/* ── Reduced motion: everything static ── */
+@media (prefers-reduced-motion: reduce) {
+  .onboarding-tint,
+  .onboarding-progress,
+  .reflection-card,
+  .tone-card,
+  .ob-cta,
+  .ob-chip { transition: none; }
+  .reflection-card.confirmed { animation: none; }
+  .tone-card:hover, .ob-cta:hover:not(:disabled) { transform: none; }
+  .stagger-1, .stagger-2, .stagger-3, .stagger-4, .stagger-5 {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+}
