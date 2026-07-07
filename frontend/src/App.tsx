@@ -1,8 +1,10 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { JSX } from 'react'
 import './App.css'
 import { ChatView } from './components/ChatView'
 import { EmptyState } from './components/EmptyState'
+import { OnboardingWizard } from './components/onboarding/OnboardingWizard'
+import { fetchMe } from './components/onboarding/api'
 
 type View = 'chat' | 'memory' | 'review' | 'settings'
 
@@ -33,7 +35,7 @@ function AmbientBackdrop() {
   return <div className="ambient-backdrop" aria-hidden="true" />
 }
 
-export default function App() {
+function Shell({ welcomeMessage }: { welcomeMessage?: string }) {
   const [view, setView] = useState<View>('chat')
 
   const renderView = () => {
@@ -42,41 +44,101 @@ export default function App() {
       case 'review':   return <EmptyState title="Review" />
       case 'settings': return <EmptyState title="Settings" />
       case 'chat':
-      default:         return <ChatView onReviewClick={() => setView('review')} />
+      default:         return (
+        <ChatView onReviewClick={() => setView('review')} welcomeMessage={welcomeMessage} />
+      )
     }
   }
 
   return (
+    <div className="app-shell">
+      {/* ── Left Rail ── */}
+      <nav className="rail glass-1" aria-label="Hauptnavigation">
+        <div className="rail-logo" aria-label="BumFlow">BF</div>
+        <div className="rail-nav">
+          {NAV_ITEMS.map(({ id, label, Icon }) => (
+            <button
+              key={id}
+              id={`nav-${id}`}
+              className={`rail-item ${view === id ? 'active' : ''}`}
+              onClick={() => setView(id)}
+              aria-label={label}
+              aria-current={view === id ? 'page' : undefined}
+              title={label}
+            >
+              <Icon />
+              <span>{label}</span>
+            </button>
+          ))}
+        </div>
+      </nav>
+
+      {/* ── Main content ── */}
+      <main className="app-main">
+        {renderView()}
+      </main>
+    </div>
+  )
+}
+
+export default function App() {
+  const [onboarded, setOnboarded] = useState<boolean | null>(null)
+  const [displayName, setDisplayName] = useState<string>('')
+  // BumFlow's first message, typed in the chosen tone — seeded into the chat
+  // after the onboarding handoff (undefined for already-onboarded users).
+  const [welcomeMessage, setWelcomeMessage] = useState<string | undefined>(undefined)
+
+  useEffect(() => {
+    let cancelled = false
+    fetchMe()
+      .then(me => {
+        if (!cancelled) {
+          setOnboarded(me.onboarded ?? true)
+          setDisplayName(me.display_name)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          // Treat fetch failure as onboarded (backward compatible)
+          setOnboarded(true)
+        }
+      })
+    return () => { cancelled = true }
+  }, [])
+
+  // Still loading /me
+  if (onboarded === null) {
+    return (
+      <>
+        <AmbientBackdrop />
+        <div className="app-shell">
+          <nav className="rail glass-1" aria-label="Hauptnavigation">
+            <div className="rail-logo" aria-label="BumFlow">BF</div>
+          </nav>
+          <main className="app-main" aria-busy="true" />
+        </div>
+      </>
+    )
+  }
+
+  // Onboarding incomplete → show wizard
+  if (!onboarded) {
+    return (
+      <>
+        <AmbientBackdrop />
+        <OnboardingWizard
+          displayName={displayName}
+          onComplete={msg => { setWelcomeMessage(msg); setOnboarded(true) }}
+        />
+      </>
+    )
+  }
+
+  // Normal shell
+  return (
     <>
       <AmbientBackdrop />
-
-      <div className="app-shell">
-        {/* ── Left Rail ── */}
-        <nav className="rail glass-1" aria-label="Hauptnavigation">
-          <div className="rail-logo" aria-label="BumFlow">BF</div>
-          <div className="rail-nav">
-            {NAV_ITEMS.map(({ id, label, Icon }) => (
-              <button
-                key={id}
-                id={`nav-${id}`}
-                className={`rail-item ${view === id ? 'active' : ''}`}
-                onClick={() => setView(id)}
-                aria-label={label}
-                aria-current={view === id ? 'page' : undefined}
-                title={label}
-              >
-                <Icon />
-                <span>{label}</span>
-              </button>
-            ))}
-          </div>
-        </nav>
-
-        {/* ── Main content ── */}
-        <main className="app-main">
-          {renderView()}
-        </main>
-      </div>
+      <Shell welcomeMessage={welcomeMessage} />
     </>
   )
 }
