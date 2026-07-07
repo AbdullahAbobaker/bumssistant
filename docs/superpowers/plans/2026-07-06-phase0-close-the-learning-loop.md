@@ -4,7 +4,7 @@
 
 **Goal:** Make the already-built memory system real: users can review/confirm/reject proposed memories, see and complete real tasks, keep their chat thread across reloads, and onboard with a coaching style — per [docs/ROADMAP.md](../../ROADMAP.md) Phase 0.
 
-**Architecture:** Backend work is pure additions to the existing action registry (`@action` in new focused modules under `app/actions/`, auto-exposed on HTTP/CLI/agent/MCP) plus one new `GET /chat/history` route. Frontend work adds a single typed `api.ts` layer, binds the existing sidebar widgets to it, and fills two stub views (Review, Onboarding overlay). No new schema — every column needed (`onboarded_at`, `status='proposed'`, `state`, `message_role`) already exists.
+**Architecture:** Backend work is pure additions to the existing action registry (`@action` in new focused modules under `app/actions/`, auto-exposed on HTTP/CLI/agent/MCP) plus one new `GET /chat/history` route. Frontend work adds a single typed `api.ts` layer, binds the existing sidebar widgets to it, and fills the Review stub; the onboarding UI ships separately via [2026-07-06-onboarding-wizard.md](2026-07-06-onboarding-wizard.md), whose backend contract Task 4 implements. No new schema — every column needed (`onboarded_at`, `status='proposed'`, `state`, `message_role`) already exists.
 
 **Tech Stack:** Python 3.12+/FastAPI/Pydantic/SQLAlchemy (raw SQL via `text()`), pytest; React 19 + TypeScript + Vite, Vitest + Testing Library.
 
@@ -540,19 +540,35 @@ git commit -m "feat(chat): GET /chat/history — thread survives reloads (F0.3)"
 
 ---
 
-### Task 4: Onboarding backend — apply answers + `/me` onboarded flag
+### Task 4: Onboarding backend — the wizard's API contract + `/me` onboarded flag
 
 **Files:**
-- Modify: `app/onboarding/questions.py` (add `MemoryWrite`, `validate_answers`, `answers_to_writes`)
-- Create: `app/actions/onboarding.py`
-- Modify: `app/actions/__init__.py`, `app/main.py` (`/me`)
+- Modify: `app/onboarding/questions.py` (add `MemoryWrite`, `validate_answer`, `answer_to_write`)
+- Create: `app/onboarding/http.py`
+- Modify: `app/main.py` (include router, extend `/me`)
 - Test: `tests/test_onboarding_apply.py`
 
 **Interfaces:**
-- Consumes: `COLD_QUESTIONS`, `COACHING_STYLES`, `required_keys()` from `app/onboarding/questions.py`; `users.onboarded_at`; `memories`.
-- Produces: pure `validate_answers(answers: dict[str, str]) -> list[str]` and `answers_to_writes(answers) -> list[MemoryWrite]` where `MemoryWrite(type: str, title: str, detail_kind: str | None)`; action `get_onboarding_questions` (read_only) returning `list[QuestionOut]`; action `complete_onboarding` (user-only) taking `{answers: dict[str, str]}` returning `{ok: bool, errors: list[str]}`; `GET /me` gains `"onboarded": bool`. Task 9's dialog consumes all three.
+- Consumes: `COLD_QUESTIONS` from `app/onboarding/questions.py`; `users.onboarded_at`; `memories`.
+- Produces: exactly the REST contract the onboarding-wizard plan consumes
+  ([2026-07-06-onboarding-wizard.md](2026-07-06-onboarding-wizard.md)):
+  `GET /onboarding/reflections` → `{"reflections": [{"id", "text"}]}`;
+  `POST /onboarding/answers` `{key, value}` → 204;
+  `POST /onboarding/reflections/{id}` `{action: "confirm"|"dismiss", text?}` → 204;
+  `POST /onboarding/complete` → 204;
+  `GET /me` gains `"onboarded": bool`.
+  Pure: `validate_answer(key: str, value: str) -> str | None` and
+  `answer_to_write(key: str, value: str) -> MemoryWrite | None` with
+  `MemoryWrite(type: str, title: str, detail_kind: str | None)`.
 
-Note: the coaching answer is written as a **confirmed `comm_style` memory whose `title` is the style string** — exactly what `DbChatPort.load_context` already reads (`SELECT title FROM memories WHERE type = 'comm_style' AND status = 'confirmed'`), so the chosen tone takes effect on the very next turn with zero orchestrator changes.
+Two design notes baked in:
+- The coaching answer is written as a **confirmed `comm_style` memory whose `title` is the
+  style string** — the exact row `DbChatPort.load_context` already reads, so the chosen tone
+  takes effect on the next turn with zero orchestrator changes. Re-answering writes a newer
+  row; retrieval takes the latest (`ORDER BY updated_at DESC LIMIT 1`).
+- Reflections are the user's `proposed` AI memories. A brand-new user has none until the
+  warm-start scan ships (roadmap Phase 2), so the list is naturally empty and the wizard
+  skips that step — no special-casing.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -560,57 +576,43 @@ Create `tests/test_onboarding_apply.py`:
 
 ```python
 """Pure tests for onboarding answer validation + answer→memory mapping (F0.4)."""
-from app.actions import registry
-from app.actions.base import is_agent_tool
-from app.onboarding.questions import answers_to_writes, validate_answers
+from app.onboarding.questions import answer_to_write, validate_answer
 
 
-def test_validate_requires_coaching_style():
-    assert validate_answers({}) == ["Pflichtfrage fehlt: coaching_style"]
-    assert validate_answers({"coaching_style": "   "}) == ["Pflichtfrage fehlt: coaching_style"]
+def test_validate_rejects_unknown_key():
+    assert validate_answer("favorite_food", "Pizza") == "Unbekannte Frage: favorite_food"
 
 
-def test_validate_rejects_unknown_style():
-    errors = validate_answers({"coaching_style": "Brutal ehrlich"})
-    assert any("Unbekannter Coaching-Stil" in e for e in errors)
+def test_validate_rejects_blank_value():
+    assert validate_answer("coaching_style", "   ") == "Leere Antwort: coaching_style"
 
 
-def test_validate_ok_with_only_the_mandatory_answer():
-    assert validate_answers({"coaching_style": "Ausgewogen"}) == []
+def test_validate_rejects_unknown_choice():
+    err = validate_answer("coaching_style", "Brutal ehrlich")
+    assert err is not None and "Ungültige Antwort" in err
 
 
-def test_answers_map_to_typed_memory_writes():
-    writes = answers_to_writes(
-        {
-            "coaching_style": "Ausgewogen",
-            "goals": "Q3-Launch schaffen",
-            "stress_triggers": "Unklare Anforderungen",
-        }
-    )
-    by_kind = {(w.type, w.detail_kind): w.title for w in writes}
-    assert by_kind[("comm_style", "coaching_style")] == "Ausgewogen"
-    assert by_kind[("pattern", "goal")] == "Q3-Launch schaffen"
-    assert by_kind[("pattern", "stress_trigger")] == "Unklare Anforderungen"
+def test_validate_accepts_valid_choice_and_free_text():
+    assert validate_answer("coaching_style", "Ausgewogen") is None
+    assert validate_answer("goals", "Q3-Launch schaffen") is None
 
 
-def test_skipped_and_blank_optionals_produce_no_writes():
-    writes = answers_to_writes({"coaching_style": "Ausgewogen", "goals": "  "})
-    assert len(writes) == 1
-    assert writes[0].type == "comm_style"
+def test_answer_to_write_parses_the_target():
+    w = answer_to_write("coaching_style", " Ausgewogen ")
+    assert (w.type, w.title, w.detail_kind) == ("comm_style", "Ausgewogen", "coaching_style")
+    w = answer_to_write("goals", "Q3-Launch schaffen")
+    assert (w.type, w.detail_kind) == ("pattern", "goal")
 
 
-def test_onboarding_actions_registered_with_safe_flags():
-    q = registry.get("get_onboarding_questions")
-    assert q.read_only is True
-    c = registry.get("complete_onboarding")
-    assert c.read_only is False and c.agent_writable is False
-    assert is_agent_tool(c) is False  # the model can never complete onboarding
+def test_answer_to_write_none_for_unknown_or_blank():
+    assert answer_to_write("nope", "x") is None
+    assert answer_to_write("goals", "  ") is None
 ```
 
 - [ ] **Step 2: Run tests to verify they fail**
 
 Run: `python -m pytest tests/test_onboarding_apply.py -v`
-Expected: FAIL with `ImportError: cannot import name 'answers_to_writes'`
+Expected: FAIL with `ImportError: cannot import name 'answer_to_write'`
 
 - [ ] **Step 3: Add the pure functions**
 
@@ -626,132 +628,208 @@ class MemoryWrite:
     detail_kind: str | None   # details->'kind' (e.g. 'goal', 'stress_trigger')
 
 
-def validate_answers(answers: dict[str, str]) -> list[str]:
-    """Human-readable validation errors; empty list = safe to apply."""
-    errors = [
-        f"Pflichtfrage fehlt: {k}"
-        for k in required_keys()
-        if not (answers.get(k) or "").strip()
-    ]
-    style = (answers.get("coaching_style") or "").strip()
-    if style and style not in COACHING_STYLES:
-        errors.append(f"Unbekannter Coaching-Stil: {style}")
-    return errors
+def _question(key: str) -> ColdQuestion | None:
+    return next((q for q in COLD_QUESTIONS if q.key == key), None)
 
 
-def answers_to_writes(answers: dict[str, str]) -> list[MemoryWrite]:
-    """Map non-empty answers onto memory writes via each question's target
-    ('type' or 'type:kind'). Skipped/blank optional questions produce nothing."""
-    writes: list[MemoryWrite] = []
-    for q in COLD_QUESTIONS:
-        val = (answers.get(q.key) or "").strip()
-        if not val:
-            continue
-        mtype, _, kind = q.target.partition(":")
-        writes.append(MemoryWrite(type=mtype, title=val, detail_kind=kind or None))
-    return writes
+def validate_answer(key: str, value: str) -> str | None:
+    """Error message for one incremental wizard answer, or None if it may be saved."""
+    q = _question(key)
+    if q is None:
+        return f"Unbekannte Frage: {key}"
+    val = value.strip()
+    if not val:
+        return f"Leere Antwort: {key}"
+    if q.kind == "choice" and val not in q.options:
+        return f"Ungültige Antwort für {key}: {val}"
+    return None
+
+
+def answer_to_write(key: str, value: str) -> MemoryWrite | None:
+    """Map one answer onto its memory write via the question's target ('type' or
+    'type:kind'). Unknown keys and blank values produce nothing."""
+    q = _question(key)
+    val = value.strip()
+    if q is None or not val:
+        return None
+    mtype, _, kind = q.target.partition(":")
+    return MemoryWrite(type=mtype, title=val, detail_kind=kind or None)
 ```
 
-- [ ] **Step 4: Write the actions**
+- [ ] **Step 4: Write the router**
 
-Create `app/actions/onboarding.py`:
+Create `app/onboarding/http.py`:
 
 ```python
-"""Onboarding actions (roadmap F0.4, Decision #13): serve the cold questions and
-apply the answers. coaching_style becomes a confirmed comm_style memory that
-calibrates BumFlow's tone from the next turn (Decision #14)."""
+"""Onboarding HTTP routes (roadmap F0.4, Decision #13) — the backend half of the
+wizard's API contract (docs/superpowers/plans/2026-07-06-onboarding-wizard.md).
+
+Reflections are warm-start inferences reflected back (Decision #9, phase 2). Until the
+scan ships (roadmap Phase 2) a new user has no proposed memories, so the list is empty
+and the wizard skips the step. Confirm/dismiss rides the propose-then-confirm gate
+(Decision #8) — same shape as the confirm_memory / reject_memory actions.
+"""
 from __future__ import annotations
 
 import json
+from typing import Literal
+from uuid import UUID
 
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.actions.base import ActionContext, action
-from app.actions.builtin import NoArgs
-from app.onboarding.questions import COLD_QUESTIONS, answers_to_writes, validate_answers
+from app.auth import CurrentUser, get_current_user
+from app.chat.repository import get_or_create_user
+from app.config import Settings, get_settings
+from app.db import get_session
+from app.llm import get_llm
+from app.onboarding.questions import answer_to_write, validate_answer
 
-
-class QuestionOut(BaseModel):
-    key: str
-    prompt: str
-    kind: str
-    required: bool
-    options: list[str]
-    help_text: str
+router = APIRouter(prefix="/onboarding", tags=["onboarding"])
 
 
-@action(
-    name="get_onboarding_questions",
-    description="Liefere die Onboarding-Fragen (Coaching-Stil, Ziele, Stressauslöser).",
-    read_only=True,
-)
-async def get_onboarding_questions(inp: NoArgs, ctx: ActionContext) -> list[QuestionOut]:
-    return [
-        QuestionOut(
-            key=q.key, prompt=q.prompt, kind=q.kind, required=q.required,
-            options=list(q.options), help_text=q.help_text,
-        )
-        for q in COLD_QUESTIONS
-    ]
+class Reflection(BaseModel):
+    id: str
+    text: str
 
 
-class CompleteOnboardingIn(BaseModel):
-    answers: dict[str, str] = Field(..., description="Antworten je Frage-Key")
+class ReflectionsOut(BaseModel):
+    reflections: list[Reflection]
 
 
-class CompleteOnboardingOut(BaseModel):
-    ok: bool
-    errors: list[str]
-
-
-@action(
-    name="complete_onboarding",
-    description="Schließe das Onboarding ab und speichere die Antworten.",
-    read_only=False,  # user-only: never an agent tool
-)
-async def complete_onboarding(
-    inp: CompleteOnboardingIn, ctx: ActionContext
-) -> CompleteOnboardingOut:
-    errors = validate_answers(inp.answers)
-    if errors:
-        return CompleteOnboardingOut(ok=False, errors=errors)
-    async with ctx.session_factory() as s:
-        for w in answers_to_writes(inp.answers):
-            embedding = await ctx.llm.embed(w.title)
-            qvec = "[" + ",".join(f"{x:.6f}" for x in embedding) + "]"
-            details = json.dumps({"kind": w.detail_kind} if w.detail_kind else {})
-            await s.execute(
-                text(
-                    """
-                    INSERT INTO memories (user_id, type, title, details, source,
-                                          confidence, status, confirmed_at, embedding)
-                    VALUES (:uid, CAST(:type AS memory_type), :title,
-                            CAST(:details AS jsonb), 'user_explicit', 1.0,
-                            'confirmed', now(), CAST(:qvec AS vector))
-                    """
-                ),
-                {"uid": ctx.user_id, "type": w.type, "title": w.title,
-                 "details": details, "qvec": qvec},
-            )
-        await s.execute(
+@router.get("/reflections", response_model=ReflectionsOut)
+async def list_reflections(
+    user: CurrentUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> ReflectionsOut:
+    """The user's proposed AI memories, reflected back for confirm/edit/dismiss."""
+    user_id = await get_or_create_user(session, user)
+    rows = (
+        await session.execute(
             text(
-                "UPDATE users SET onboarded_at = now() "
-                "WHERE id = :uid AND onboarded_at IS NULL"
+                """
+                SELECT id, title FROM memories
+                WHERE user_id = :uid AND status = 'proposed' AND source = 'ai_inferred'
+                ORDER BY created_at DESC
+                LIMIT 5
+                """
             ),
-            {"uid": ctx.user_id},
+            {"uid": user_id},
         )
-        await s.commit()
-    return CompleteOnboardingOut(ok=True, errors=[])
+    ).all()
+    return ReflectionsOut(reflections=[Reflection(id=str(r.id), text=r.title) for r in rows])
+
+
+class AnswerIn(BaseModel):
+    key: str = Field(..., description="ColdQuestion.key, z. B. coaching_style")
+    value: str
+
+
+@router.post("/answers", status_code=204)
+async def save_answer(
+    inp: AnswerIn,
+    user: CurrentUser = Depends(get_current_user),
+    settings: Settings = Depends(get_settings),
+    session: AsyncSession = Depends(get_session),
+) -> None:
+    """Save one answer immediately — the wizard posts per step, so an aborted run loses
+    nothing. A direct user answer is Decision #8's auto-confirm path (user_explicit)."""
+    error = validate_answer(inp.key, inp.value)
+    if error:
+        raise HTTPException(status_code=422, detail=error)
+    user_id = await get_or_create_user(session, user)
+    write = answer_to_write(inp.key, inp.value)
+    embedding = await get_llm(settings).embed(write.title)
+    qvec = "[" + ",".join(f"{x:.6f}" for x in embedding) + "]"
+    details = json.dumps({"kind": write.detail_kind} if write.detail_kind else {})
+    await session.execute(
+        text(
+            """
+            INSERT INTO memories (user_id, type, title, details, source,
+                                  confidence, status, confirmed_at, embedding)
+            VALUES (:uid, CAST(:type AS memory_type), :title, CAST(:details AS jsonb),
+                    'user_explicit', 1.0, 'confirmed', now(), CAST(:qvec AS vector))
+            """
+        ),
+        {"uid": user_id, "type": write.type, "title": write.title,
+         "details": details, "qvec": qvec},
+    )
+    await session.commit()
+
+
+class ReflectionDecisionIn(BaseModel):
+    action: Literal["confirm", "dismiss"]
+    text: str | None = None  # edit = confirm with corrected text
+
+
+@router.post("/reflections/{reflection_id}", status_code=204)
+async def decide_reflection(
+    reflection_id: UUID,
+    inp: ReflectionDecisionIn,
+    user: CurrentUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> None:
+    """Owner-scoped, only flips 'proposed' rows — the same gate as confirm/reject_memory."""
+    user_id = await get_or_create_user(session, user)
+    if inp.action == "confirm":
+        await session.execute(
+            text(
+                """
+                UPDATE memories
+                SET status = 'confirmed', confirmed_at = now(), updated_at = now(),
+                    title = COALESCE(:text, title)
+                WHERE id = CAST(:rid AS uuid) AND user_id = :uid AND status = 'proposed'
+                """
+            ),
+            {"rid": str(reflection_id), "uid": user_id, "text": inp.text},
+        )
+    else:
+        await session.execute(
+            text(
+                """
+                UPDATE memories
+                SET status = 'rejected', updated_at = now()
+                WHERE id = CAST(:rid AS uuid) AND user_id = :uid AND status = 'proposed'
+                """
+            ),
+            {"rid": str(reflection_id), "uid": user_id},
+        )
+    await session.commit()
+
+
+@router.post("/complete", status_code=204)
+async def complete_onboarding(
+    user: CurrentUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> None:
+    user_id = await get_or_create_user(session, user)
+    await session.execute(
+        text(
+            "UPDATE users SET onboarded_at = now() "
+            "WHERE id = :uid AND onboarded_at IS NULL"
+        ),
+        {"uid": user_id},
+    )
+    await session.commit()
 ```
 
-Modify `app/actions/__init__.py` — add:
+- [ ] **Step 5: Wire main.py**
+
+In `app/main.py`, add the import:
 
 ```python
-from app.actions import onboarding as _onboarding  # noqa: F401  registers onboarding actions
+from app.onboarding.http import router as onboarding_router
 ```
 
-Modify `app/main.py` — replace the `/me` route with:
+add next to `mount_actions(app)` at the bottom:
+
+```python
+app.include_router(onboarding_router)
+```
+
+and replace the `/me` route with:
 
 ```python
 @app.get("/me")
@@ -776,16 +854,16 @@ async def me(
     }
 ```
 
-- [ ] **Step 5: Run tests to verify they pass**
+- [ ] **Step 6: Run tests to verify they pass**
 
 Run: `python -m pytest tests/test_onboarding_apply.py -v` then `python -m pytest -q`
 Expected: all pass
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
-git add app/onboarding/questions.py app/actions/onboarding.py app/actions/__init__.py app/main.py tests/test_onboarding_apply.py
-git commit -m "feat(onboarding): questions + complete_onboarding actions, /me onboarded flag (F0.4)"
+git add app/onboarding/questions.py app/onboarding/http.py app/main.py tests/test_onboarding_apply.py
+git commit -m "feat(onboarding): wizard API contract (/onboarding/*) + /me onboarded flag (F0.4)"
 ```
 
 ---
@@ -798,7 +876,7 @@ git commit -m "feat(onboarding): questions + complete_onboarding actions, /me on
 
 **Interfaces:**
 - Consumes: backend routes from Tasks 1–4. All actions go through `POST /actions/{name}` — the HTTP adapter has one dispatcher; the catalog's `GET` method label is informational only.
-- Produces: types `Me, Task, ProposedMemory, HistoryMessage, OnboardingQuestion` and functions `getMe, getHistory, invokeAction, listTasks, completeTask, listProposedMemories, confirmMemory, rejectMemory, getOnboardingQuestions, completeOnboarding` — the ONLY fetch layer Tasks 6–9 use.
+- Produces: types `Me, Task, ProposedMemory, HistoryMessage` and functions `getMe, getHistory, invokeAction, listTasks, completeTask, listProposedMemories, confirmMemory, rejectMemory` — the ONLY fetch layer Tasks 6–8 use. (The onboarding wizard plan brings its own `components/onboarding/api.ts`.)
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -892,15 +970,6 @@ export interface HistoryMessage {
   created_at: string
 }
 
-export interface OnboardingQuestion {
-  key: string
-  prompt: string
-  kind: 'choice' | 'text'
-  required: boolean
-  options: string[]
-  help_text: string
-}
-
 async function asJson<T>(res: Response): Promise<T> {
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
@@ -939,12 +1008,6 @@ export const confirmMemory = (memoryId: string) =>
 
 export const rejectMemory = (memoryId: string) =>
   invokeAction<{ id: string; status: string; changed: boolean }>('reject_memory', { memory_id: memoryId })
-
-export const getOnboardingQuestions = () =>
-  invokeAction<OnboardingQuestion[]>('get_onboarding_questions')
-
-export const completeOnboarding = (answers: Record<string, string>) =>
-  invokeAction<{ ok: boolean; errors: string[] }>('complete_onboarding', { answers })
 ```
 
 - [ ] **Step 4: Run tests to verify they pass**
@@ -1643,332 +1706,27 @@ git commit -m "feat(ui): review panel — confirm/reject proposed memories (slic
 
 ---
 
-### Task 9: Onboarding dialog (frontend slice 4)
+### Task 9: Onboarding UI — deferred to the wizard plan
 
-> **SUPERSEDED — skip this task.** The onboarding UI is built by the dedicated wizard plan
-> ([2026-07-06-onboarding-wizard.md](2026-07-06-onboarding-wizard.md), spec
-> `docs/superpowers/specs/2026-07-06-onboarding-wizard-design.md`), which consumes the same
-> backend contract from Task 4 (`/me.onboarded`, `submit_onboarding`). Execute this task only
-> if the wizard is explicitly descoped. Task 10's end-to-end verification treats the wizard
-> plan's gate (its Task 10) as the onboarding UI.
-
-**Files:**
-- Create: `frontend/src/components/OnboardingDialog.tsx`, `frontend/src/components/OnboardingDialog.css`
-- Modify: `frontend/src/App.tsx` (gate on `/me.onboarded`)
-- Test: `frontend/src/components/OnboardingDialog.test.tsx`
+**Files:** none in this plan.
 
 **Interfaces:**
-- Consumes: `getOnboardingQuestions, completeOnboarding, getMe` from `../api` (Tasks 4–5).
-- Produces: `OnboardingDialog({ onDone: () => void })`; `App` shows it as an overlay while `onboarded === false`. Fail-open: if `/me` errors, chat is never blocked.
+- Consumes: nothing.
+- Produces: nothing — this is a handoff marker.
 
-- [ ] **Step 1: Write the failing tests**
+The onboarding frontend ("Der erste Eindruck", 5-step cinematic wizard) has its own full
+implementation plan: [2026-07-06-onboarding-wizard.md](2026-07-06-onboarding-wizard.md).
+Execute that plan **after** this one — Task 4 above implements exactly the API contract it
+consumes (`/me.onboarded`, `GET /onboarding/reflections`, `POST /onboarding/answers`,
+`POST /onboarding/reflections/{id}`, `POST /onboarding/complete`). Nothing in this plan
+mounts an onboarding UI; until the wizard ships, the app simply never blocks on onboarding
+(the wizard plan requires fail-open behavior when `/me` lacks the flag).
 
-Create `frontend/src/components/OnboardingDialog.test.tsx`:
+- [ ] **Step 1: Verify the contract match**
 
-```tsx
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
-import { beforeEach, expect, test, vi } from 'vitest'
-import { OnboardingDialog } from './OnboardingDialog'
-import * as api from '../api'
-
-vi.mock('../api', () => ({
-  getOnboardingQuestions: vi.fn(),
-  completeOnboarding: vi.fn().mockResolvedValue({ ok: true, errors: [] }),
-}))
-
-const QUESTIONS = [
-  {
-    key: 'coaching_style', prompt: 'Wie soll BumFlow mit dir sprechen?', kind: 'choice',
-    required: true, options: ['Direkt & fordernd', 'Ausgewogen'], help_text: '',
-  },
-  {
-    key: 'goals', prompt: 'Was sind deine wichtigsten Ziele in diesem Quartal?',
-    kind: 'text', required: false, options: [], help_text: 'Optional.',
-  },
-]
-
-beforeEach(() => {
-  vi.mocked(api.getOnboardingQuestions).mockReset().mockResolvedValue(QUESTIONS)
-  vi.mocked(api.completeOnboarding).mockClear()
-})
-
-test('submit is disabled until the mandatory style is chosen', async () => {
-  render(<OnboardingDialog onDone={() => {}} />)
-  const submit = await screen.findByRole('button', { name: "Los geht's" })
-  expect(submit).toBeDisabled()
-  fireEvent.click(screen.getByRole('button', { name: 'Ausgewogen' }))
-  expect(submit).toBeEnabled()
-})
-
-test('submits answers and calls onDone', async () => {
-  const onDone = vi.fn()
-  render(<OnboardingDialog onDone={onDone} />)
-  fireEvent.click(await screen.findByRole('button', { name: 'Ausgewogen' }))
-  fireEvent.click(screen.getByRole('button', { name: "Los geht's" }))
-  await waitFor(() =>
-    expect(api.completeOnboarding).toHaveBeenCalledWith({ coaching_style: 'Ausgewogen' }),
-  )
-  await waitFor(() => expect(onDone).toHaveBeenCalledOnce())
-})
-
-test('shows backend validation errors instead of closing', async () => {
-  vi.mocked(api.completeOnboarding).mockResolvedValue({
-    ok: false, errors: ['Unbekannter Coaching-Stil: X'],
-  })
-  const onDone = vi.fn()
-  render(<OnboardingDialog onDone={onDone} />)
-  fireEvent.click(await screen.findByRole('button', { name: 'Ausgewogen' }))
-  fireEvent.click(screen.getByRole('button', { name: "Los geht's" }))
-  expect(await screen.findByRole('alert')).toHaveTextContent('Unbekannter Coaching-Stil: X')
-  expect(onDone).not.toHaveBeenCalled()
-})
-```
-
-- [ ] **Step 2: Run tests to verify they fail**
-
-Run: `cd frontend && npx vitest run src/components/OnboardingDialog.test.tsx`
-Expected: FAIL — `Cannot find module './OnboardingDialog'`
-
-- [ ] **Step 3: Implement the dialog**
-
-Create `frontend/src/components/OnboardingDialog.tsx`:
-
-```tsx
-import { useEffect, useState } from 'react'
-import './OnboardingDialog.css'
-import { completeOnboarding, getOnboardingQuestions } from '../api'
-import type { OnboardingQuestion } from '../api'
-
-export interface OnboardingDialogProps {
-  onDone: () => void
-}
-
-export function OnboardingDialog({ onDone }: OnboardingDialogProps) {
-  const [questions, setQuestions] = useState<OnboardingQuestion[]>([])
-  const [answers, setAnswers] = useState<Record<string, string>>({})
-  const [error, setError] = useState<string | null>(null)
-  const [saving, setSaving] = useState(false)
-
-  useEffect(() => {
-    let cancelled = false
-    getOnboardingQuestions()
-      .then(qs => { if (!cancelled) setQuestions(qs) })
-      .catch(() => { if (!cancelled) setError('Fragen konnten nicht geladen werden.') })
-    return () => { cancelled = true }
-  }, [])
-
-  const setAnswer = (key: string, value: string) => {
-    setAnswers(prev => {
-      const next = { ...prev, [key]: value }
-      if (!value.trim()) delete next[key] // skipped optionals send nothing
-      return next
-    })
-  }
-
-  const requiredAnswered = questions
-    .filter(q => q.required)
-    .every(q => (answers[q.key] ?? '').trim() !== '')
-
-  const submit = async () => {
-    setSaving(true)
-    setError(null)
-    try {
-      const res = await completeOnboarding(answers)
-      if (res.ok) onDone()
-      else setError(res.errors.join(' '))
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Fehler beim Speichern')
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  return (
-    <div className="onboarding-overlay" role="dialog" aria-modal="true" aria-label="Onboarding">
-      <div className="onboarding-card glass-3">
-        <h1>Willkommen bei BumFlow</h1>
-        <p className="onboarding-intro">Drei kurze Fragen — nur die erste ist Pflicht.</p>
-        {questions.map(q => (
-          <fieldset key={q.key} className="onboarding-question">
-            <legend>{q.prompt}{q.required ? '' : ' (optional)'}</legend>
-            {q.help_text && <p className="onboarding-help">{q.help_text}</p>}
-            {q.kind === 'choice' ? (
-              <div className="onboarding-options">
-                {q.options.map(opt => (
-                  <button
-                    key={opt}
-                    type="button"
-                    className={`onboarding-option ${answers[q.key] === opt ? 'selected' : ''}`}
-                    aria-pressed={answers[q.key] === opt}
-                    onClick={() => setAnswer(q.key, opt)}
-                  >
-                    {opt}
-                  </button>
-                ))}
-              </div>
-            ) : (
-              <textarea
-                value={answers[q.key] ?? ''}
-                onChange={e => setAnswer(q.key, e.target.value)}
-                rows={2}
-                aria-label={q.prompt}
-              />
-            )}
-          </fieldset>
-        ))}
-        {error && <div className="error-toast" role="alert">{error}</div>}
-        <button
-          className="onboarding-submit"
-          onClick={submit}
-          disabled={!requiredAnswered || saving}
-        >
-          {saving ? 'Speichern…' : "Los geht's"}
-        </button>
-      </div>
-    </div>
-  )
-}
-```
-
-Create `frontend/src/components/OnboardingDialog.css`:
-
-```css
-.onboarding-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 50;
-  display: grid;
-  place-items: center;
-  background: rgba(15, 23, 42, 0.60);
-  backdrop-filter: blur(8px);
-}
-
-.onboarding-card {
-  width: min(560px, calc(100vw - 2rem));
-  max-height: calc(100vh - 4rem);
-  overflow-y: auto;
-  padding: 2rem;
-  border-radius: 28px;
-  display: flex;
-  flex-direction: column;
-  gap: 1.25rem;
-  color: var(--fg);
-}
-
-.onboarding-intro {
-  color: var(--fg-muted);
-}
-
-.onboarding-question {
-  border: none;
-  padding: 0;
-}
-
-.onboarding-question legend {
-  color: var(--fg);
-  font-weight: 600;
-  margin-bottom: 0.5rem;
-}
-
-.onboarding-help {
-  color: var(--fg-faint);
-  font-size: 0.8rem;
-  margin-bottom: 0.5rem;
-}
-
-.onboarding-options {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-}
-
-.onboarding-option {
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  border-radius: 999px;
-  padding: 0.5rem 1rem;
-  background: rgba(255, 255, 255, 0.08);
-  color: var(--fg);
-  cursor: pointer;
-}
-
-.onboarding-option.selected {
-  background: rgba(255, 255, 255, 0.28);
-  border-color: rgba(255, 255, 255, 0.6);
-}
-
-.onboarding-question textarea {
-  width: 100%;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.06);
-  color: var(--fg);
-  padding: 0.6rem 0.8rem;
-  resize: vertical;
-}
-
-.onboarding-submit {
-  align-self: flex-end;
-  border: none;
-  border-radius: 999px;
-  padding: 0.65rem 1.5rem;
-  background: rgba(255, 255, 255, 0.92);
-  color: #0f172a;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.onboarding-submit:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-```
-
-- [ ] **Step 4: Gate the app**
-
-Modify `frontend/src/App.tsx` — add imports and the gate:
-
-```tsx
-import { useEffect, useState } from 'react'
-```
-
-```tsx
-import { OnboardingDialog } from './components/OnboardingDialog'
-import { getMe } from './api'
-```
-
-Inside `App()`, add below the `view` state:
-
-```tsx
-  const [onboarded, setOnboarded] = useState<boolean | null>(null)
-
-  useEffect(() => {
-    let cancelled = false
-    getMe()
-      .then(me => { if (!cancelled) setOnboarded(me.onboarded) })
-      .catch(() => { if (!cancelled) setOnboarded(true) }) // fail open: never block chat
-    return () => { cancelled = true }
-  }, [])
-```
-
-And render the overlay inside the fragment, after `<AmbientBackdrop />`:
-
-```tsx
-      {onboarded === false && <OnboardingDialog onDone={() => setOnboarded(true)} />}
-```
-
-Note for `frontend/src/App.test.tsx` (if it renders `<App />`): mock `./api` the same way as in Task 6's ChatView test, with `onboarded: true`, so existing shell tests are unaffected.
-
-- [ ] **Step 5: Run tests to verify they pass**
-
-Run: `cd frontend && npx vitest run`
-Expected: all pass
-
-- [ ] **Step 6: Commit**
-
-```bash
-git add frontend/src/components/OnboardingDialog.tsx frontend/src/components/OnboardingDialog.css frontend/src/components/OnboardingDialog.test.tsx frontend/src/App.tsx frontend/src/App.test.tsx
-git commit -m "feat(ui): onboarding dialog gated on /me.onboarded (slice 4, F0.4)"
-```
+Open `docs/superpowers/plans/2026-07-06-onboarding-wizard.md`, section "API contract
+defined by this plan", and confirm every endpoint/payload matches Task 4's routes verbatim.
+If anything drifted, fix Task 4's router (contract wins — the wizard plan defines it).
 
 ---
 
@@ -1993,7 +1751,7 @@ uvicorn app.main:app --reload --port 8001
 ```
 
 Temporarily point the `vite.config.ts` proxy at `http://localhost:8001`, run `npm run dev`, then verify in the browser (dev bypass user, MockLLM):
-1. First load shows the onboarding dialog; choose a style → dialog closes; reload → it does not reappear.
+1. `curl -s localhost:8001/me` shows `"onboarded": false` for a fresh user; `curl -s -X POST localhost:8001/onboarding/answers -H 'Content-Type: application/json' -d '{"key":"coaching_style","value":"Ausgewogen"}'` then `curl -s -X POST localhost:8001/onboarding/complete` → `/me` now shows `"onboarded": true`. (The wizard UI arrives with the onboarding-wizard plan.)
 2. Send "Leg eine Aufgabe an: Q3-Report bis Freitag" → task appears in the sidebar after refresh (MockLLM triggers on task keywords; the extraction path proposes it).
 3. Review view lists the proposal; Bestätigen → it moves into `list_tasks` / sidebar.
 4. Complete the task via the sidebar checkbox → it disappears.
@@ -2005,9 +1763,10 @@ Temporarily point the `vite.config.ts` proxy at `http://localhost:8001`, run `np
 In `CLAUDE.md`, add rows to the "What's built & tested" table:
 
 ```markdown
-| Review/task/onboarding actions | `app/actions/{memory_review,tasks,onboarding}.py` | ✅ |
+| Review + task actions | `app/actions/{memory_review,tasks}.py` | ✅ |
+| Onboarding API (wizard contract) | `app/onboarding/http.py` | ✅ |
 | Chat history endpoint | `app/chat/repository.py` + `/chat/history` | ✅ |
-| Frontend slices 2+4 (Review, Onboarding) + live sidebar | `frontend/src/` | ✅ |
+| Frontend slice 2 (Review) + live sidebar | `frontend/src/` | ✅ |
 ```
 
 and change NEXT UP to point at `docs/ROADMAP.md` Phase 1 (proactive scheduler).
@@ -2034,6 +1793,6 @@ git commit -m "docs: Phase 0 complete — learning loop closed; next up: proacti
 | F0.2 live TaskWidget + ProfileCard from /me | Task 6 |
 | F0.2 "Was steht heute an?" via tools | list_tasks is in `agent_tool_schemas()`; MockLLM scriptable (existing orchestrator tool tests cover dispatch) |
 | F0.3 GET /chat/history + reload persistence + briefing style | Tasks 3 + 7 |
-| F0.4 gate on onboarded_at, mandatory style, optional rest | Tasks 4 + 9 |
+| F0.4 onboarding backend (wizard contract), gate on onboarded_at | Task 4 (UI: [onboarding-wizard plan](2026-07-06-onboarding-wizard.md)) |
 | F0.4 style changes prompt output | stored as confirmed `comm_style` title — the exact row `load_context` reads |
 | Global: pure DB-free tests per module | every task's step 1 |
